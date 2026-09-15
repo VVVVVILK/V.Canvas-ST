@@ -24,7 +24,7 @@ import { analyzeContext, testAnalyzeModel } from './lib/llm-api.js';
 import { showProgress, updateProgress, finishProgress, hideProgress, setCancelHandler } from './lib/progress.js';
 
 export const MODULE_NAME = 'v_canvas';
-const VERSION = '0.1.1';
+const VERSION = '0.1.2';
 
 // system prompt 注入用的键名（同一键重复写入会覆盖，不会累积）。
 const PROMPT_KEY = 'v_canvas_rule';
@@ -443,6 +443,7 @@ function applyDisplay(ctx, messageId, msg, st) {
     }
     try {
         ctx.updateMessageBlock(messageId, { ...msg }); // 只重渲染这一条，不会再触发事件
+        hardenChatIllustrationImages(messageId);
     } catch (err) {
         warn('刷新消息 DOM 失败:', err);
     }
@@ -648,6 +649,46 @@ function showPromptOverlay({ messageId, index, marker }) {
 
 // ── 重新贴回显示（切聊天 / 切 swipe）──
 
+// hardenChatIllustrationImages 给正文里的插图 <img> 补上 referrerpolicy="no-referrer"。
+//
+// 为什么需要：上游 CDN（cdn.qwenlm.ai）有防盗链，带酒馆 Referer 的请求一律 403。
+// 面板里的 <img> 可以直接写属性；正文走 markdown 渲染，属性带不上
+// （渲染管线会过滤），只能在 DOM 渲染后补——并重赋一次 src，
+// 强制以新策略重新发起请求（首次请求可能已按默认策略发出并 403）。
+// 只处理本插件写入的远程插图地址，不碰消息里其它来源的图片。
+function hardenChatIllustrationImages(messageId) {
+    try {
+        const chat = getContext().chat ?? [];
+        const urls = new Set();
+        const collect = (msg) => {
+            const list = msg?.extra?.illust?.urls;
+            if (Array.isArray(list)) for (const u of list) {
+                if (u && /^https?:/i.test(String(u))) urls.add(String(u));
+            }
+        };
+        if (messageId === undefined) chat.forEach(collect);
+        else collect(chat[messageId]);
+        if (!urls.size) return;
+
+        const norm = (u) => { try { return decodeURIComponent(String(u)); } catch { return String(u); } };
+        const roots = messageId === undefined
+            ? document.querySelectorAll('.mes_text')
+            : document.querySelectorAll(`.mes[mesid="${messageId}"] .mes_text`);
+        roots.forEach((root) => {
+            root.querySelectorAll('img').forEach((im) => {
+                const src = im.getAttribute('src') || '';
+                if (!/^https?:/i.test(src)) return;                          // 只处理远程图
+                if (!urls.has(src) && !urls.has(norm(src))) return;          // 只处理本插件的插图
+                if (im.getAttribute('referrerpolicy') === 'no-referrer') return;
+                im.setAttribute('referrerpolicy', 'no-referrer');
+                im.src = src;                                                // 以新策略重新发起请求
+            });
+        });
+    } catch (err) {
+        warn('正文插图防盗链加固失败:', err);
+    }
+}
+
 function rehydrateOne(messageId, msg) {
     const st = msg?.extra?.illust;
     if (!st || !Array.isArray(st.urls) || !st.src) return false;
@@ -658,6 +699,7 @@ function rehydrateOne(messageId, msg) {
     if (dt) msg.extra.display_text = dt; else delete msg.extra.display_text;
     try {
         getContext().updateMessageBlock(messageId, { ...msg });
+        hardenChatIllustrationImages(messageId);
     } catch (err) {
         warn('重建显示失败:', err);
     }
@@ -689,6 +731,9 @@ async function rehydrateAll() {
     if (touched) {
         try { await ctx.saveChat(); } catch { /* 忽略 */ }
     }
+    // 切聊天 / 加载更多时整条过一遍：display_text 未变化的消息不会走 rehydrateOne，
+    // 但里面的远程插图仍然需要补 referrerpolicy（首次请求可能已按默认策略 403）。
+    hardenChatIllustrationImages();
 }
 
 // ── 原地占位符（只改 DOM，绝不写进聊天记录）──
