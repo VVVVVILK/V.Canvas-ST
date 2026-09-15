@@ -673,11 +673,19 @@ input[type=number]{-moz-appearance:textfield}
 
 <script>
 /* ─────────────────────────────────────────────────────────────
-   面板仅为前端：所有读写都通过 window.parent.__V_CANVAS_API__
-   交由酒馆侧的扩展本体执行。取不到该函数表示面板无控制权，
+   面板仅为前端：所有读写都通过酒馆页面上的 __V_CANVAS_API__ 交给扩展本体执行。
+   面板可能以内嵌 iframe（window.parent）打开，也可能被新标签页打开（window.opener）；
+   两种情形都指向同一个酒馆页面。取不到该函数表示面板无控制权，
    此时直接显示错误状态，不做静默降级。
    ───────────────────────────────────────────────────────────── */
-const API = (window.parent && window.parent !== window) ? window.parent.__V_CANVAS_API__ : undefined;
+function resolveApi() {
+  try { if (window.parent && window.parent !== window && typeof window.parent.__V_CANVAS_API__ === 'function') return window.parent.__V_CANVAS_API__; } catch (e) { /* 跨域忽略 */ }
+  try { if (window.opener && typeof window.opener.__V_CANVAS_API__ === 'function') return window.opener.__V_CANVAS_API__; } catch (e) { /* 跨域忽略 */ }
+  try { if (typeof window.__V_CANVAS_API__ === 'function') return window.__V_CANVAS_API__; } catch (e) { /* 忽略 */ }
+  return undefined;
+}
+
+let API = resolveApi();
 const READY = typeof API === 'function';
 
 const $ = id => document.getElementById(id);
@@ -695,7 +703,9 @@ function toast(msg, kind = 'ok') {
 }
 
 async function call(action, payload) {
-  if (!READY) return { ok: false, error: '未连接到扩展' };
+  // 桥接函数可能在面板载入后才挂上（内嵌场景下的时序差异），每次调用前重新解析。
+  if (typeof API !== 'function') API = resolveApi();
+  if (typeof API !== 'function') return { ok: false, error: '未连接到酒馆页面：请从扩展抽屉内的「打开管理面板」进入' };
   try {
     const r = await API(action, payload ?? null);
     if (!r || typeof r !== 'object') return { ok: false, error: '扩展返回了无法解析的数据' };
@@ -1019,7 +1029,12 @@ async function loadAll() {
 
 /* ── 启动 ── */
 (async function boot() {
-  if (!READY) {
+  // 桥接可能晚于面板载入才挂上：短暂等待并重试，避免误报"未连接"。
+  for (let i = 0; i < 10 && typeof API !== 'function'; i++) {
+    await new Promise(r => setTimeout(r, 200));
+    API = resolveApi();
+  }
+  if (typeof API !== 'function') {
     $('bridge-warn').classList.add('show');
     $('pill').className = 'pill off';
     kvSet('pill-text', '扩展未连接');

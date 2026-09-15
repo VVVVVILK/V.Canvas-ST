@@ -24,7 +24,7 @@ import { analyzeContext, testAnalyzeModel } from './lib/llm-api.js';
 import { showProgress, updateProgress, finishProgress, hideProgress, setCancelHandler } from './lib/progress.js';
 
 export const MODULE_NAME = 'v_canvas';
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 // system prompt 注入用的键名（同一键重复写入会覆盖，不会累积）。
 const PROMPT_KEY = 'v_canvas_rule';
@@ -821,6 +821,29 @@ function addSettingsUI() {
 
 const PANEL_ID = 'v_canvas_panel_overlay';
 let panelKeyHandler = null;
+let panelFitHandler = null;
+
+// 浮层高度按可视视口精确赋值：移动端浏览器地址栏收起/展开、横竖屏切换都会改变可视高度。
+function fitPanelHeight(el) {
+    const h = Math.round((window.visualViewport && window.visualViewport.height) || window.innerHeight || 0);
+    if (h > 0) el.style.height = h + 'px';
+}
+
+function bindPanelFit(el) {
+    panelFitHandler = () => fitPanelHeight(el);
+    fitPanelHeight(el);
+    window.addEventListener('resize', panelFitHandler);
+    window.addEventListener('orientationchange', panelFitHandler);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', panelFitHandler);
+}
+
+function unbindPanelFit() {
+    if (!panelFitHandler) return;
+    window.removeEventListener('resize', panelFitHandler);
+    window.removeEventListener('orientationchange', panelFitHandler);
+    if (window.visualViewport) window.visualViewport.removeEventListener('resize', panelFitHandler);
+    panelFitHandler = null;
+}
 
 function panelUrl() {
     return new URL('./panel.html', import.meta.url).href + '?v=' + encodeURIComponent(VERSION);
@@ -833,22 +856,62 @@ function openPanel() {
         <div id="${PANEL_ID}">
             <div class="v_canvas_panel_chrome">
                 <span class="v_canvas_panel_title">V.Canvas 管理面板</span>
-                <button class="menu_button" id="v_canvas_panel_close">关闭</button>
+                <div class="v_canvas_panel_actions">
+                    <button class="menu_button" id="v_canvas_panel_newtab">新标签页</button>
+                    <button class="menu_button" id="v_canvas_panel_close">关闭</button>
+                </div>
             </div>
             <iframe id="v_canvas_panel_iframe" title="V.Canvas 管理面板"></iframe>
+            <div id="v_canvas_panel_fallback">
+                <div class="v_canvas_panel_fallback_card">
+                    <b>面板未能内嵌显示</b>
+                    <p>当前浏览环境可能禁止内嵌页面（部分手机浏览器与应用内 WebView 会限制 iframe）。
+                       改用新标签页打开面板，功能与内嵌方式一致。</p>
+                    <button class="menu_button" id="v_canvas_panel_fallback_open">在新标签页打开面板</button>
+                </div>
+            </div>
         </div>`);
     $('body').append(overlay);
+    bindPanelFit(overlay[0]);
 
     installBridge();                 // 先挂桥再接面板，免得面板抢先自检说"没连上"
-    overlay.find('#v_canvas_panel_iframe')[0].src = panelUrl();
+    const frame = overlay.find('#v_canvas_panel_iframe')[0];
+
+    // 新标签页入口：面板页会改从 window.opener 取桥接函数，因此同样可用。
+    const openInNewTab = () => {
+        const w = window.open(panelUrl(), '_blank');
+        if (!w) overlay.find('#v_canvas_panel_fallback').addClass('show');
+    };
+
+    let loaded = false;
+    frame.addEventListener('load', () => {
+        // 未设置 src 时也会触发一次 load（about:blank），据 body 是否为空区分。
+        try {
+            const doc = frame.contentDocument;
+            if (doc && doc.body && doc.body.childElementCount > 0) loaded = true;
+        } catch {
+            loaded = true; // 跨域无法读取内容时视为已加载
+        }
+    });
+    frame.src = panelUrl();
 
     overlay.find('#v_canvas_panel_close').on('click', closePanel);
+    overlay.find('#v_canvas_panel_newtab').on('click', openInNewTab);
+    overlay.find('#v_canvas_panel_fallback_open').on('click', openInNewTab);
+
     panelKeyHandler = (e) => { if (e.key === 'Escape') closePanel(); };
     document.addEventListener('keydown', panelKeyHandler);
+
+    setTimeout(() => {
+        if (!loaded && document.body.contains(frame)) {
+            overlay.find('#v_canvas_panel_fallback').addClass('show');
+        }
+    }, 8000);
 }
 
 function closePanel() {
     $(`#${PANEL_ID}`).remove();
+    unbindPanelFit();
     if (panelKeyHandler) {
         document.removeEventListener('keydown', panelKeyHandler);
         panelKeyHandler = null;
