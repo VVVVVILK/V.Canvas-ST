@@ -341,8 +341,8 @@ async function processMessage(messageId, type, msg) {
     log(`${tag} 命中 ${markers.length} 个标记，source mode=${eff.mode}`);
 
     const cfg = s();
-    if (!cfg.base_url) {
-        toastr.warning('未配置 NAI 服务地址，无法出图', 'V.Canvas');
+    if (!cfg.base_url && !isLocalUpstream(cfg.base_url)) {
+        toastr.warning('未配置 NAI 服务地址：装了 V.Adapter 会自动直连；否则请填写一个 NovelAI 协议服务地址', 'V.Canvas');
         return;
     }
 
@@ -954,8 +954,8 @@ function installBridge() {
                     if (!text) return { ok: false, error: '请输入描述' };
 
                     const c = s();
-                    if (!c.base_url) {
-                        return { ok: false, error: '未配置 NAI 服务地址：请先启动一个 NovelAI 协议服务（如 V.Adapter）' };
+                    if (!c.base_url && !isLocalUpstream(c.base_url)) {
+                        return { ok: false, error: '未配置 NAI 服务地址：装了 V.Adapter 会自动直连；否则请填写一个 NovelAI 协议服务地址' };
                     }
 
                     // 「自动尺寸」依赖上游的扩写能力（V.Adapter 的 expand=1）。
@@ -997,8 +997,8 @@ function installBridge() {
                     if (!c.ctx_url || !c.ctx_model) {
                         return { ok: false, error: '请先填写分析模型的 API 地址与模型名' };
                     }
-                    if (!c.base_url) {
-                        return { ok: false, error: '未配置 NAI 服务地址' };
+                    if (!c.base_url && !isLocalUpstream(c.base_url)) {
+                        return { ok: false, error: '未配置 NAI 服务地址：装了 V.Adapter 会自动直连；否则请填写一个 NovelAI 协议服务地址' };
                     }
                     const ctx = getContext();
                     const chat = ctx.chat ?? [];
