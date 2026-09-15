@@ -480,7 +480,7 @@ async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMo
 
     const runOne = async (m) => {
         try {
-            const { base64, extension } = await generateIllustration({
+            const gen = await generateIllustration({
                 baseUrl: cfg.base_url,
                 apiKey: cfg.api_key,
                 model: cfg.model,
@@ -496,7 +496,8 @@ async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMo
 
             const subFolder = ctx.name2 || '';
             const fileName = `illust_${Date.now()}_${m.index}`;
-            const url = await saveBase64AsFile(base64, subFolder, fileName, extension);
+            // url 存在 = 上游远程链接降级结果（无本地字节），直接引用，不落盘
+            const url = gen.url ?? await saveBase64AsFile(gen.base64, subFolder, fileName, gen.extension);
             st.urls[m.index] = url;
             ok++;
             done++;
@@ -962,7 +963,7 @@ function installBridge() {
                     // 地址不是本地适配服务时扩写不会发生，此时回退用设置页的出图参数，避免上报 0 尺寸。
                     const followRecommended = payload?.sizeMode !== 'fixed' && isLocalUpstream(c.base_url);
 
-                    const { base64, extension, prompt: usedPrompt } = await generateIllustration({
+                    const gen = await generateIllustration({
                         baseUrl: c.base_url,
                         apiKey: c.api_key,
                         model: c.model,
@@ -977,9 +978,10 @@ function installBridge() {
                     });
 
                     const ctx = getContext();
-                    const url = await saveBase64AsFile(base64, ctx.name2 || '', `translate_${Date.now()}`, extension);
+                    // url 存在 = 上游远程链接降级结果（无本地字节），直接引用，不落盘
+                    const url = gen.url ?? await saveBase64AsFile(gen.base64, ctx.name2 || '', `translate_${Date.now()}`, gen.extension);
                     log(`转译出图完成 → ${url}（${followRecommended ? '跟随转译推荐尺寸' : '设置页尺寸'}）`);
-                    return { ok: true, data: { url, prompt: usedPrompt || text } };
+                    return { ok: true, data: { url, prompt: gen.prompt || text } };
                 }
 
                 // 上下文出图：试连分析模型
