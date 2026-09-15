@@ -716,14 +716,30 @@ function imgUrl(u) {
 function markImgErrors(root) {
   root.querySelectorAll('img').forEach(im => {
     const onErr = () => {
+      const src = im.getAttribute('src') || '';
       const box = document.createElement('div');
       box.className = 'img-broken';
-      box.innerHTML = '<b>图片未能加载</b><br>' + esc(im.getAttribute('src') || '');
+      box.innerHTML = '<b>图片未能加载</b><br>' +
+        '<a href="' + esc(src) + '" target="_blank" rel="noopener noreferrer">在新标签页打开这个地址（可用于判断是链接失效还是本机网络问题）</a><br>' +
+        esc(src);
       im.replaceWith(box);
     };
     if (im.complete && im.naturalWidth === 0) onErr();
     else im.addEventListener('error', onErr, { once: true });
   });
+}
+
+// 图片标签统一生成：远程图片必须显式禁用 Referer —— 上游 CDN（cdn.qwenlm.ai）有防盗链，
+// 带酒馆地址的 Referer 一律 403，只放行「不带 Referer」或它自家站的 Referer。
+// 正文里的插图能正常显示正因如此（酒馆侧渲染不带 Referer）；面板此前没加，故必然裂图。
+function imgTag(url, cls) {
+  return '<img src="' + esc(url) + '"' + (cls ? ' class="' + cls + '"' : '') +
+    ' referrerpolicy="no-referrer" alt="illustration">';
+}
+
+// 缩略图里的图片：远程与本地都走同一套属性
+function thumbImg(url) {
+  return imgTag(imgUrl(url));
 }
 
 // 远程链接（未落盘）的图片来自上游临时链接，随时可能失效；在面板上标注出来。
@@ -867,8 +883,8 @@ async function refreshOverview() {
   } else {
     wrap.innerHTML = '<div class="thumbs">' + imgs.map(it =>
       '<div class="thumb">' +
-        '<a href="' + esc(imgUrl(it.url)) + '" target="_blank" rel="noopener">' +
-          '<img src="' + esc(imgUrl(it.url)) + '" alt="illustration">' +
+        '<a href="' + esc(imgUrl(it.url)) + '" target="_blank" rel="noopener noreferrer">' +
+          thumbImg(it.url) +
         '</a>' +
         '<div class="tb-meta"><b>第 ' + esc(it.messageId) + ' 条</b> · 第 ' + esc(it.index + 1) + ' 张' + remoteTag(it.url) + '<br>' +
         esc((it.prompt || '').slice(0, 60)) + '</div>' +
@@ -904,8 +920,8 @@ async function refreshHistory() {
   }
   wrap.innerHTML = '<div class="thumbs">' + list.map(it =>
     '<div class="thumb">' +
-      '<a href="' + esc(imgUrl(it.url)) + '" target="_blank" rel="noopener">' +
-        '<img src="' + esc(imgUrl(it.url)) + '" alt="illustration">' +
+      '<a href="' + esc(imgUrl(it.url)) + '" target="_blank" rel="noopener noreferrer">' +
+        thumbImg(it.url) +
       '</a>' +
       '<div class="tb-meta"><b>' + esc(fmtTime(it.t)) + '</b>' +
         (it.name ? ' · ' + esc(it.name) : '') + remoteTag(it.url) +
@@ -929,13 +945,13 @@ let TR_BUSY = false;
 function renderTranslateResult(d) {
   const url = imgUrl(d.url);
   $('tr-result').innerHTML =
-    '<div class="tr-preview"><img src="' + esc(url) + '" alt="illustration"></div>' +
+    '<div class="tr-preview">' + imgTag(url) + '</div>' +
     '<label class="field" style="margin-top:14px">' +
       '<span class="lab">实际送入上游的提示词</span>' +
       '<textarea id="tr-prompt" rows="6" readonly></textarea>' +
     '</label>' +
     '<div class="row" style="margin-top:10px">' +
-      '<a class="btn sm" href="' + esc(url) + '" target="_blank" rel="noopener">在新标签页打开</a>' +
+      '<a class="btn sm" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">在新标签页打开</a>' +
     '</div>';
   $('tr-prompt').value = d.prompt || '';
   markImgErrors($('tr-result'));
