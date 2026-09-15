@@ -506,8 +506,8 @@ input[type=number]{-moz-appearance:textfield}
           <div class="card-body">
             <label class="field">
               <span class="lab">NAI 服务地址</span>
-              <input type="text" id="f-base_url" placeholder="http://127.0.0.1:8888">
-              <span class="hint">V.Adapter 适配服务，或官方 NAI / 任意 NAI 协议网关。无需带 <span class="mono">/ai</span>，会自动补全。</span>
+              <input type="text" id="f-base_url" placeholder="留空 = 自动使用同页面的 V.Adapter">
+              <span class="hint">已安装 V.Adapter 时<strong>留空即可</strong>，两个扩展会自动接上，无需端口；只有对接官方 NAI / 第三方 NAI 网关时才需要填。填写后若连不上，会自动改走同页面的 V.Adapter。</span>
             </label>
             <label class="field">
               <span class="lab">API Key</span>
