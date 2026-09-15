@@ -121,7 +121,11 @@ input[type=number]{-moz-appearance:textfield}
 .thumb img{display:block;width:100%;height:150px;object-fit:cover;background:hsl(222 26% 8%)}
 .thumb .tb-meta{padding:7px 9px;font-size:11px;color:var(--muted-fg);line-height:1.5}
 .thumb .tb-meta b{color:var(--fg);font-weight:600}
+.tb-tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:700;color:var(--warning);background:hsl(38 92% 50% / .12);border:1px solid hsl(38 92% 50% / .3)}
 .empty{padding:26px 0;text-align:center;font-size:12.5px;color:var(--muted-fg);line-height:1.7}
+/* 图片加载失败的可见占位：附上原始地址，便于直接判断是路径问题还是文件问题 */
+.img-broken{padding:12px;font-size:11.5px;line-height:1.6;color:var(--danger);background:hsl(0 72% 58% / .08);border:1px dashed hsl(0 72% 58% / .35);border-radius:8px;word-break:break-all}
+.img-broken b{display:block;margin-bottom:4px;font-size:12.5px}
 /* 转译出图结果 */
 .tr-preview{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:hsl(222 26% 9% / .6);display:flex;justify-content:center}
 .tr-preview img{display:block;max-width:100%;max-height:56vh;height:auto}
@@ -691,6 +695,43 @@ const READY = typeof API === 'function';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/* ── 图片地址解析 ──
+   酒馆返回的图片地址是根路径（/user/images/…），而本页位于
+   /scripts/extensions/third-party/<扩展>/panel.html，相对写法会被解析到扩展目录下。
+   这里统一按酒馆根解析成绝对地址，兼容历史记录里可能存在的相对写法。 */
+const APP_BASE = (() => {
+  try { if (window.parent && window.parent !== window && window.parent.location) return window.parent.location.href; } catch (e) { /* 跨域忽略 */ }
+  try { if (window.opener && window.opener.location) return window.opener.location.href; } catch (e) { /* 跨域忽略 */ }
+  return location.href.replace(/scripts\/extensions\/.*$/, '');   // 兜底：从自身路径砍掉扩展段
+})();
+
+function imgUrl(u) {
+  const s = String(u ?? '').trim();
+  if (!s) return '';
+  if (/^(https?:|data:|blob:)/i.test(s)) return s;
+  try { return new URL(s.replace(/^\.\//, ''), APP_BASE).href; } catch (e) { return s; }
+}
+
+// 图片加载失败时给出可见反馈（而不是留一个空白或裂图，让排查无从下手）
+function markImgErrors(root) {
+  root.querySelectorAll('img').forEach(im => {
+    const onErr = () => {
+      const box = document.createElement('div');
+      box.className = 'img-broken';
+      box.innerHTML = '<b>图片未能加载</b><br>' + esc(im.getAttribute('src') || '');
+      im.replaceWith(box);
+    };
+    if (im.complete && im.naturalWidth === 0) onErr();
+    else im.addEventListener('error', onErr, { once: true });
+  });
+}
+
+// 远程链接（未落盘）的图片来自上游临时链接，随时可能失效；在面板上标注出来。
+function isRemoteUrl(u) { return /^https?:/i.test(String(u ?? '').trim()); }
+function remoteTag(u) {
+  return isRemoteUrl(u) ? '<span class="tb-tag">远程链接 · 未落盘</span>' : '';
+}
+
 let SETTINGS = null;
 let STATE = null;
 
@@ -826,10 +867,13 @@ async function refreshOverview() {
   } else {
     wrap.innerHTML = '<div class="thumbs">' + imgs.map(it =>
       '<div class="thumb">' +
-        '<img src="' + esc(it.url) + '" alt="illustration" loading="lazy">' +
-        '<div class="tb-meta"><b>第 ' + esc(it.messageId) + ' 条</b> · 第 ' + esc(it.index + 1) + ' 张<br>' +
+        '<a href="' + esc(imgUrl(it.url)) + '" target="_blank" rel="noopener">' +
+          '<img src="' + esc(imgUrl(it.url)) + '" alt="illustration">' +
+        '</a>' +
+        '<div class="tb-meta"><b>第 ' + esc(it.messageId) + ' 条</b> · 第 ' + esc(it.index + 1) + ' 张' + remoteTag(it.url) + '<br>' +
         esc((it.prompt || '').slice(0, 60)) + '</div>' +
       '</div>').join('') + '</div>';
+    markImgErrors(wrap);
   }
 }
 
@@ -860,13 +904,14 @@ async function refreshHistory() {
   }
   wrap.innerHTML = '<div class="thumbs">' + list.map(it =>
     '<div class="thumb">' +
-      '<a href="' + esc(it.url) + '" target="_blank" rel="noopener">' +
-        '<img src="' + esc(it.url) + '" alt="illustration" loading="lazy">' +
+      '<a href="' + esc(imgUrl(it.url)) + '" target="_blank" rel="noopener">' +
+        '<img src="' + esc(imgUrl(it.url)) + '" alt="illustration">' +
       '</a>' +
       '<div class="tb-meta"><b>' + esc(fmtTime(it.t)) + '</b>' +
-        (it.name ? ' · ' + esc(it.name) : '') +
+        (it.name ? ' · ' + esc(it.name) : '') + remoteTag(it.url) +
         '<br>' + esc((it.prompt || '').slice(0, 60)) + '</div>' +
     '</div>').join('') + '</div>';
+  markImgErrors(wrap);
 }
 
 $('btn-history-refresh').onclick = async () => { await refreshHistory(); toast('已刷新'); };
@@ -882,7 +927,7 @@ $('btn-history-clear').onclick = async () => {
 let TR_BUSY = false;
 
 function renderTranslateResult(d) {
-  const url = String(d.url || '');
+  const url = imgUrl(d.url);
   $('tr-result').innerHTML =
     '<div class="tr-preview"><img src="' + esc(url) + '" alt="illustration"></div>' +
     '<label class="field" style="margin-top:14px">' +
@@ -893,6 +938,7 @@ function renderTranslateResult(d) {
       '<a class="btn sm" href="' + esc(url) + '" target="_blank" rel="noopener">在新标签页打开</a>' +
     '</div>';
   $('tr-prompt').value = d.prompt || '';
+  markImgErrors($('tr-result'));
 }
 
 $('btn-tr-gen').onclick = async () => {
