@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V.Canvas</title>
+<style>
+/* 深色主题，独立于酒馆主题；设计语言与 V.Adapter 面板保持一致。 */
+:root{
+  --bg:#0f172a; --fg:hsl(210 20% 96%); --card:hsl(222 24% 12%);
+  --primary:#10b981; --primary-fg:#03110a; --muted:hsl(222 15% 20%);
+  --muted-fg:hsl(217 12% 62%); --border:hsl(222 14% 22%);
+  --success:#22c55e; --warning:hsl(38 92% 50%); --danger:hsl(0 72% 58%); --info:hsl(200 80% 55%);
+  --radius:.625rem;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{color-scheme:dark}
+body{
+  background:
+    radial-gradient(60rem 30rem at 85% -10%, rgb(16 185 129 / .10), transparent 60%),
+    radial-gradient(50rem 26rem at -10% 110%, rgb(34 197 94 / .07), transparent 60%),
+    linear-gradient(180deg,#0f172a,#18181b);
+  color:var(--fg);font-size:14px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:ui-monospace,Consolas,"Cascadia Mono",monospace}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:hsl(222 12% 30% / .7);border-radius:999px}
+a{color:var(--primary)}
+.app-shell{display:flex;min-height:100vh}
+/* sidebar */
+.sidebar{width:250px;flex:none;display:flex;flex-direction:column;border-right:1px solid var(--border);background:hsl(222 24% 12% / .7);backdrop-filter:blur(16px);position:sticky;top:0;height:100vh}
+.sidebar-head{padding:22px 20px 18px;border-bottom:1px solid hsl(222 14% 22% / .6)}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-mark{width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,#10b981,#22c55e);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;box-shadow:0 8px 20px rgb(16 185 129 / .35);flex:none;font-family:ui-monospace,Consolas,monospace}
+.brand-name{font-size:16px;font-weight:700}
+.brand-sub{margin-top:8px;font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted-fg)}
+.sidebar-nav{flex:1;padding:14px 12px;display:flex;flex-direction:column;gap:4px;overflow-y:auto}
+.nav-btn{position:relative;width:100%;display:flex;align-items:center;gap:11px;padding:9px 12px;border:none;border-radius:8px;background:transparent;color:var(--muted-fg);font-size:13.5px;font-weight:500;cursor:pointer;text-align:left;font-family:inherit;transition:background .15s,color .15s}
+.nav-btn:hover{background:hsl(222 18% 17% / .7);color:var(--fg)}
+.nav-btn.active{background:hsl(152 65% 45% / .1);color:var(--fg)}
+.nav-btn.active:before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);height:20px;width:3px;border-radius:999px;background:var(--primary)}
+.sidebar-foot{padding:14px 16px;border-top:1px solid hsl(222 14% 22% / .6);display:flex;flex-direction:column;gap:10px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;color:var(--primary);background:hsl(160 84% 39% / .1);border:1px solid hsl(160 84% 39% / .2);padding:3px 9px;border-radius:999px}
+.pill.off{color:var(--danger);background:hsl(0 72% 58% / .1);border-color:hsl(0 72% 58% / .25)}
+.pill.warn{color:var(--warning);background:hsl(38 92% 50% / .1);border-color:hsl(38 92% 50% / .28)}
+.pdot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.foot-note{font-size:11px;color:var(--muted-fg);line-height:1.6}
+/* main */
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.content{max-width:1080px;width:100%;margin:0 auto;padding:26px 30px 56px}
+.topbar{display:none;height:56px;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border);background:hsl(222 24% 12% / .7);backdrop-filter:blur(16px)}
+.topbar .tb-title{font-size:14px;font-weight:600}
+.hamb{background:none;border:1px solid var(--border);border-radius:8px;color:var(--fg);padding:7px 10px;cursor:pointer;display:inline-flex;align-items:center}
+.mask-mobile{position:fixed;inset:0;background:rgb(0 0 0 / .5);z-index:80;display:none}
+.mask-mobile.show{display:block}
+.page{display:none;flex-direction:column;gap:18px}
+.page.active{display:flex}
+.page-head h1{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.page-head p{margin-top:6px;font-size:13px;color:var(--muted-fg);line-height:1.6}
+.card{background:var(--card);border:1px solid var(--border);border-radius:calc(var(--radius) + .125rem);overflow:hidden}
+.card-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.card-title{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+.card-desc{margin-top:3px;font-size:12px;color:var(--muted-fg)}
+.card-body{padding:18px 20px}
+.grid{display:grid;gap:16px}
+.grid.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:960px){
+  .grid.c2,.grid.c3{grid-template-columns:1fr}
+  .sidebar{position:fixed;inset:0 auto 0 0;z-index:90;transform:translateX(-100%);transition:transform .25s ease;box-shadow:0 0 48px rgb(0 0 0 / .5)}
+  .sidebar.open{transform:none}
+  .topbar{display:flex}
+  .content{padding:18px 14px 48px}
+}
+.kv{display:flex;flex-direction:column;gap:3px;padding:10px 0;border-bottom:1px dashed hsl(222 14% 22% / .7)}
+.kv:last-child{border-bottom:none}
+.kv .k{font-size:11px;color:var(--muted-fg);letter-spacing:.02em}
+.kv .v{font-size:13.5px;word-break:break-all}
+.stat{border:1px solid var(--border);background:hsl(222 26% 9% / .6);border-radius:9px;padding:12px 14px}
+.stat .v{font-size:20px;font-weight:700;line-height:1.2}
+.stat .k{margin-top:2px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted-fg)}
+.stat.ok .v{color:var(--success)} .stat.bad .v{color:var(--danger)} .stat.warn .v{color:var(--warning)}
+label.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+label.field:last-child{margin-bottom:0}
+label.field .lab{font-size:12.5px;font-weight:600}
+label.field .hint{font-size:11.5px;color:var(--muted-fg);line-height:1.55}
+input[type=text],input[type=password],input[type=number],select,textarea{width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:hsl(222 26% 9% / .8);color:var(--fg);font-size:13.5px;font-family:inherit;outline:none}
+textarea{resize:vertical;line-height:1.6}
+input:focus,select:focus,textarea:focus{border-color:hsl(152 65% 45% / .6);box-shadow:0 0 0 3px hsl(152 65% 45% / .12)}
+input[type=number]{-moz-appearance:textfield}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:8px;border:1px solid var(--border);background:var(--muted);color:var(--fg);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:filter .15s,opacity .15s}
+.btn:hover{filter:brightness(1.15)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn.primary{background:linear-gradient(135deg,#10b981,#22c55e);border-color:transparent;color:var(--primary-fg)}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--danger);border-color:hsl(0 72% 58% / .35);background:hsl(0 72% 58% / .08)}
+.btn.sm{padding:6px 11px;font-size:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+.tag.ok{color:var(--success);background:hsl(142 71% 45% / .12);border:1px solid hsl(142 71% 45% / .25)}
+.tag.bad{color:var(--danger);background:hsl(0 72% 58% / .1);border:1px solid hsl(0 72% 58% / .25)}
+.tag.info{color:var(--info);background:hsl(200 80% 55% / .1);border:1px solid hsl(200 80% 55% / .25)}
+.code{display:block;padding:8px 10px;border-radius:8px;background:hsl(222 26% 8%);border:1px solid var(--border);font-size:12px;word-break:break-all}
+.muted{color:var(--muted-fg)}
+.err{color:var(--danger);font-size:12.5px;line-height:1.6;word-break:break-word}
+/* 开关行（本面板新增，沿用同一套配色） */
+.switch-row{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px dashed hsl(222 14% 22% / .7)}
+.switch-row:last-child{border-bottom:none}
+.switch-row .sr-text{flex:1;min-width:0}
+.switch-row .sr-lab{font-size:13px;font-weight:600}
+.switch-row .sr-hint{margin-top:3px;font-size:11.5px;color:var(--muted-fg);line-height:1.55}
+.sw{position:relative;flex:none;width:42px;height:24px;border-radius:999px;background:hsl(222 16% 26%);border:1px solid var(--border);cursor:pointer;transition:background .18s}
+.sw:after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:hsl(217 12% 78%);transition:transform .18s,background .18s}
+.sw.on{background:hsl(152 65% 40%);border-color:hsl(152 65% 45% / .5)}
+.sw.on:after{transform:translateX(18px);background:#fff}
+.sw.dis{opacity:.45;cursor:not-allowed}
+/* 缩略图 */
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:12px}
+.thumb{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:hsl(222 26% 9% / .6)}
+.thumb img{display:block;width:100%;height:150px;object-fit:cover;background:hsl(222 26% 8%)}
+.thumb .tb-meta{padding:7px 9px;font-size:11px;color:var(--muted-fg);line-height:1.5}
+.thumb .tb-meta b{color:var(--fg);font-weight:600}
+.empty{padding:26px 0;text-align:center;font-size:12.5px;color:var(--muted-fg);line-height:1.7}
+/* 转译出图结果 */
+.tr-preview{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:hsl(222 26% 9% / .6);display:flex;justify-content:center}
+.tr-preview img{display:block;max-width:100%;max-height:56vh;height:auto}
+/* toast */
+#toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:9px;z-index:60}
+.toast{padding:11px 15px;border-radius:10px;border:1px solid var(--border);background:hsl(222 24% 12% / .97);font-size:13px;max-width:380px;box-shadow:0 12px 30px rgb(0 0 0 / .35);line-height:1.6}
+.toast.ok{border-color:hsl(142 71% 45% / .45)}
+.toast.bad{border-color:hsl(0 72% 58% / .45)}
+/* 桥接自检失败 */
+#bridge-warn{display:none;margin:14px 0 0;padding:14px 16px;border-radius:10px;border:1px solid hsl(0 72% 58% / .45);background:hsl(0 72% 58% / .1);color:var(--fg);font-size:13px;line-height:1.7}
+#bridge-warn.show{display:block}
+#bridge-warn b{color:var(--danger)}
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="brand">
+        <div class="brand-mark">Vi</div>
+        <div><div class="brand-name">V.Canvas</div></div>
+      </div>
+      <div class="brand-sub">VILK</div>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-btn active" data-page="overview">概览</button>
+      <button class="nav-btn" data-page="history">生成记录</button>
+      <button class="nav-btn" data-page="prompt">提示词</button>
+      <button class="nav-btn" data-page="translate">转译出图</button>
+      <button class="nav-btn" data-page="context">上下文出图</button>
+      <button class="nav-btn" data-page="settings">设置</button>
+    </nav>
+    <div class="sidebar-foot">
+      <span class="pill" id="pill"><span class="pdot"></span><span id="pill-text">检查中…</span></span>
+      <div class="foot-note" id="foot-version">V.Canvas</div>
+    </div>
+  </aside>
+
+  <div class="mask-mobile" id="mask-mobile" onclick="toggleSidebar(false)"></div>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="hamb" id="btn-menu" aria-label="打开菜单">
+        <svg width="18" height="14" viewBox="0 0 18 14" fill="none"><path d="M1 1h16M1 7h16M1 13h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <div class="tb-title">V.Canvas</div>
+    </header>
+    <div class="content">
+
+      <div id="bridge-warn">
+        <b>未连接到扩展，面板当前无控制权。</b><br>
+        面板仅为前端界面，实际设置在酒馆侧。请关闭本面板，刷新酒馆页面后重新打开。
+        （若反复出现，说明扩展加载失败；请查看浏览器控制台中 <span class="mono">[V.Canvas]</span> 前缀的报错。）
+      </div>
+
+      <!-- ── 概览 ── -->
+      <section class="page active" id="page-overview">
+        <div class="page-head">
+          <h1>概览</h1>
+          <p>插件状态、当前上游与本会话已生成的插图。所有改动直接写入酒馆（改数据 → 刷界面 → 持久化）。</p>
+        </div>
+
+        <div class="grid c3">
+          <div class="stat" id="stat-enabled-box"><div class="v" id="stat-enabled">-</div><div class="k">自动插画</div></div>
+          <div class="stat"><div class="v" id="stat-upstream">-</div><div class="k">当前上游</div></div>
+          <div class="stat"><div class="v" id="stat-images">-</div><div class="k">本会话已出图</div></div>
+        </div>
+
+        <div class="grid c2">
+          <div class="card">
+            <div class="card-head"><div><div class="card-title">上游</div><div class="card-desc">出图服务的地址与参数</div></div></div>
+            <div class="card-body">
+              <div class="kv"><span class="k">NAI 服务地址</span><span class="v mono" id="ov-base">-</span></div>
+              <div class="kv"><span class="k">API Key</span><span class="v mono" id="ov-key">-</span></div>
+              <div class="kv"><span class="k">模型名</span><span class="v mono" id="ov-model">-</span></div>
+              <div class="kv"><span class="k">分辨率 / 步数 / CFG</span><span class="v mono" id="ov-params">-</span></div>
+              <div class="kv"><span class="k">送给上游的内容</span><span class="v" id="ov-prompt-format">-</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><div class="card-title">触发规则</div><div class="card-desc">什么时候会自动出图</div></div></div>
+            <div class="card-body">
+              <div class="kv"><span class="k">每条回复最多</span><span class="v" id="ov-max">-</span></div>
+              <div class="kv"><span class="k">规则注入</span><span class="v" id="ov-inject">-</span></div>
+              <div class="kv"><span class="k">上下文出图</span><span class="v" id="ov-ctx">-</span></div>
+              <div class="kv"><span class="k">正文里剔除 tag</span><span class="v" id="ov-strip">-</span></div>
+              <div class="kv"><span class="k">swipe 换回复时重新配图</span><span class="v" id="ov-swipe">-</span></div>
+              <div class="kv"><span class="k">忽略的消息类型</span><span class="v mono" id="ov-exclude">-</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">本聊天已生成的插画</div><div class="card-desc">直接从当前会话消息读取，非缓存</div></div>
+            <button class="btn sm" id="btn-refresh-overview">刷新</button>
+          </div>
+          <div class="card-body">
+            <div id="thumbs-wrap"><div class="empty">读取中…</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 生成记录 ── -->
+      <section class="page" id="page-history">
+        <div class="page-head">
+          <h1>生成记录</h1>
+          <p>本插件出过的全部插画，按时间倒序排列。记录保存在酒馆设置中，切聊天、换角色或重开酒馆后仍可查阅；点击图片可在新标签页打开原图。</p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">全部记录</div><div class="card-desc" id="history-count">读取中…</div></div>
+            <div class="row">
+              <button class="btn sm" id="btn-history-refresh">刷新</button>
+              <button class="btn sm danger" id="btn-history-clear">清空记录</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="history-wrap"><div class="empty">读取中…</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 提示词 ── -->
+      <section class="page" id="page-prompt">
+        <div class="page-head">
+          <h1>提示词</h1>
+          <p>
+            此处填写的内容会随正文一并交给「上下文出图」的分析模型，作为其撰写出图提示词的依据。
+            三栏均可留空，长度不限；留空时由分析模型依据作品与正文自行判定。
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">正面质量提示词</div><div class="card-desc">画质与画面要素要求</div></div>
+            <button class="btn sm" id="btn-prompt-reload">重新载入</button>
+          </div>
+          <div class="card-body">
+            <label class="field">
+              <span class="lab">正面质量提示词</span>
+              <textarea id="f-ctx_quality" rows="10" placeholder="留空 = 由分析模型自行决定。可写自然语言，也可写英文 Danbooru 标签，例如：masterpiece, best quality, ultra detailed"></textarea>
+              <span class="hint">
+                作为强制约束下发：分析模型产出的描述与标签必须体现此处要求的画质与要素，
+                其中的措辞与标签会被直接沿用。需要补充细节时由分析模型自行补全，
+                补充内容不得与此处的既有要求冲突。
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">负面提示词</div><div class="card-desc">需要规避的内容</div></div></div>
+          <div class="card-body">
+            <label class="field">
+              <span class="lab">负面提示词</span>
+              <textarea id="f-ctx_negative" rows="8" placeholder="留空 = 不设置排除项。例如：lowres, bad anatomy, watermark, modern clothing"></textarea>
+              <span class="hint">
+                作为排除项下发：其中列出的内容不得出现在分析模型产出的描述与标签中。
+                此处仅作用于上下文出图路线；直接发给出图上游的负面词在「设置」页的「出图参数」中配置。
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">画风</div><div class="card-desc">美术风格要求</div></div></div>
+          <div class="card-body">
+            <label class="field">
+              <span class="lab">画风</span>
+              <textarea id="f-ctx_style" rows="8" placeholder="留空 = 由分析模型按作品自动判定；如：日式动画赛璐璐画风、厚涂、暖色调"></textarea>
+              <span class="hint">
+                填写后即作为最终画风，分析模型不再替换为自行判定的风格。
+                可写明画风流派、笔触、色彩倾向与时代质感，描述越具体，画面越稳定。
+                角色与服装无需在此指定 —— 由分析模型依据正文与前文判断。
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">破限词（选填）</div><div class="card-desc">分析模型或出图上游拒绝血腥 / 成人向内容时使用；两个模型的破限内容不同，因此分成两栏</div></div></div>
+          <div class="card-body">
+            <label class="field">
+              <span class="lab">分析模型破限词（上下文出图）</span>
+              <textarea id="f-jb_llm" rows="8" placeholder="留空 = 完全不生效。用于正文含血腥、成人向内容时，避免分析模型拒答产出提示词。"></textarea>
+              <span class="hint">
+                填写后原样拼入分析模型的<b>每次请求</b>（正文之前）。针对的是「读文字的模型」拒答 ——
+                内容形式通常是写给模型看的附加说明。
+              </span>
+            </label>
+            <label class="field" style="margin-top:14px">
+              <span class="lab">生图破限词（出图上游）</span>
+              <textarea id="f-jb_image" rows="8" placeholder="留空 = 完全不生效。用于出图上游拒绝生成某些画面时。"></textarea>
+              <span class="hint">
+                填写后原样拼到<b>出图提示词的最前面</b>（自动插画与转译出图均生效）。
+                针对的是「画图的模型 / 中转」的审核 —— 内容形式通常是 tag 或画面前缀。
+              </span>
+            </label>
+            <div class="muted" style="font-size:12px;line-height:1.65;margin-top:10px">
+              本插件不内置任何内容，两栏为空时与未添加本功能完全相同；内容与用途由使用者自行填写、自行把握。
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">作用范围与请求方式</div><div class="card-desc">这三栏在什么时候生效</div></div></div>
+          <div class="card-body">
+            <div class="muted" style="font-size:12.5px;line-height:1.8">
+              仅作用于<b>上下文出图</b>路线。标记驱动路线下，提示词由剧情模型直接写在正文的
+              <span class="mono">[ILLUST: …]</span> 中，不经过此处。
+              <br>分析模型每次请求都是一次全新的单轮对话，不携带历史轮次；
+              本页填写的内容会随每次请求完整发送，不会被后续对话稀释或覆盖。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 转译出图 ── -->
+      <section class="page" id="page-translate">
+        <div class="page-head">
+          <h1>转译出图</h1>
+          <p>输入一句简短描述，由适配服务先扩写为完整画面提示词再出图。本页与自动插画流程相互独立，结果只在面板内展示，不写入聊天记录。</p>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">输入</div><div class="card-desc">角色名、场景短语均可</div></div></div>
+          <div class="card-body">
+            <label class="field">
+              <span class="lab">简短描述</span>
+              <textarea id="tr-text" rows="3" placeholder="例如：哆啦A梦里面的野比玉子 ／ 雨夜霓虹街头的银发少女"></textarea>
+            </label>
+            <label class="field">
+              <span class="lab">尺寸</span>
+              <select id="tr-size-mode">
+                <option value="auto">自动 — 跟随转译推荐的尺寸</option>
+                <option value="fixed">使用「设置」页的出图参数</option>
+              </select>
+              <span class="hint">
+                扩写由适配服务执行（V.Adapter 的 <span class="mono">expand=1</span>），「自动」尺寸同样取自扩写结果。
+                若服务地址直连官方 NAI 或 NAI 网关，扩写不会发生，请改用下面一项。
+              </span>
+            </label>
+            <div class="row">
+              <button class="btn primary" id="btn-tr-gen">转译并出图</button>
+            </div>
+            <div class="err" id="tr-err"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">结果</div><div class="card-desc">仅在本面板内展示</div></div>
+            <button class="btn sm" id="btn-tr-copy">复制提示词</button>
+          </div>
+          <div class="card-body">
+            <div id="tr-result"><div class="empty">尚未生成。</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 上下文出图 ── -->
+      <section class="page" id="page-context">
+        <div class="page-head">
+          <h1>上下文出图</h1>
+          <p>
+            另行配置一个文字模型，由其阅读正文与前文，判定配图位置并生成出图提示词，
+            再交由当前出图上游作画。该路线不依赖剧情模型配合，适用于各类角色卡。
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">总开关</div><div class="card-desc">开启后，角色回复里没有标记时自动走这条路线</div></div>
+            <button class="btn sm" id="btn-ctx-reload">重新载入</button>
+          </div>
+          <div class="card-body">
+            <div class="switch-row">
+              <div class="sw" id="sw-ctx_enabled" data-key="ctx_enabled"></div>
+              <div class="sr-text">
+                <div class="sr-lab">启用上下文出图</div>
+                <div class="sr-hint">
+                  与标记驱动路线并存且互不重复：正文已含 <span class="mono">[ILLUST: …]</span> 时走标记路线（无额外等待）；
+                  不含标记时才调用分析模型。
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">分析模型</div><div class="card-desc">OpenAI 兼容聊天接口，与出图上游相互独立</div></div>
+            <button class="btn sm" id="btn-ctx-test">测试连接</button>
+          </div>
+          <div class="card-body">
+            <label class="field">
+              <span class="lab">API 地址</span>
+              <input type="text" id="f-ctx_url" placeholder="https://api.openai.com/v1　或　http://127.0.0.1:4000/v1">
+              <span class="hint">任意 OpenAI 兼容服务：官方、中转、本地反代均可。与「设置」页的出图地址互不影响。</span>
+            </label>
+            <label class="field">
+              <span class="lab">API Key</span>
+              <input type="text" id="f-ctx_key" placeholder="该服务的密钥；不需要鉴权的本地服务可留空">
+            </label>
+            <label class="field">
+              <span class="lab">模型名</span>
+              <input type="text" id="f-ctx_model" placeholder="如 gpt-4o-mini、qwen3.8-max、deepseek-chat">
+              <span class="hint">无默认值，须手动填写。该模型仅承担分镜与提示词生成，建议选用轻量模型。</span>
+            </label>
+            <div class="muted" style="font-size:12px;line-height:1.65;margin-bottom:14px">
+              画风、正面质量提示词、负面提示词与<b>破限词</b>在<b>「提示词」页</b>填写，本页不再重复配置。
+              破限词会随本页分析模型的每次请求一并发送 —— 正文含血腥、成人向内容导致分析拒答时，在那一栏填入附加说明即可。
+            </div>
+            <label class="field">
+              <span class="lab">分析超时（秒）</span>
+              <input type="number" id="f-ctx_timeout_sec" min="10" max="600">
+            </label>
+            <div class="muted" style="font-size:12px;line-height:1.65">
+              配图数量由「设置」页的<b>每轮上限</b>统一控制，与标记驱动路线共用同一设置项。
+              数量为多张时，分析模型按正文的前段、中段与末段分段选取插入位置。
+            </div>
+            <div class="err" id="ctx-test-err" style="margin-top:10px"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">立即执行一次</div><div class="card-desc">对当前聊天最后一条角色回复执行分析与出图</div></div>
+            <button class="btn primary sm" id="btn-ctx-gen">分析并出图</button>
+          </div>
+          <div class="card-body">
+            <div id="ctx-result"><div class="empty">点击按钮可立即验证该链路，无需等待下一轮生成。</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">产物与上游的对应关系</div><div class="card-desc">分析结果如何送给出图上游</div></div></div>
+          <div class="card-body">
+            <div class="muted" style="font-size:12.5px;line-height:1.8">
+              分析模型对每个画面同时产出<b>自然语言描述</b>与 <b>Danbooru 标签</b>，
+              由「设置」页的<b>提示词形态</b>决定送交哪一段：
+              <br>· 经 V.Adapter（OpenAI 格式上游）→ 送描述；
+              <br>· 直连官方 NovelAI / NAI 网关（扩散模型）→ 送标签。
+              <br>两条出图链路共用同一份产物，无需分别配置。插图仅走显示层，正文不保留提示词文本，亦不进入上下文。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 设置 ── -->
+      <section class="page" id="page-settings">
+        <div class="page-head">
+          <h1>设置</h1>
+          <p>改动即时生效并保存。面板只负责界面，实际写入由酒馆侧的扩展本体执行。</p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">总开关</div><div class="card-desc">关闭后，即使 AI 回复中包含 tag 也不会出图</div></div>
+            <button class="btn sm" id="btn-reload-settings">重新载入</button>
+          </div>
+          <div class="card-body">
+            <div class="switch-row">
+              <div class="sw" id="sw-enabled" data-key="enabled"></div>
+              <div class="sr-text">
+                <div class="sr-lab">启用自动插画</div>
+                <div class="sr-hint">检测到 <span class="mono">[ILLUST: …]</span> tag 就自动出图并就地插入。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">上游</div><div class="card-desc">NovelAI 协议服务的地址与鉴权</div></div>
+            <button class="btn sm" id="btn-test">测试连接</button>
+          </div>
+          <div class="card-body">
+            <label class="field">
+              <span class="lab">NAI 服务地址</span>
+              <input type="text" id="f-base_url" placeholder="http://127.0.0.1:8888">
+              <span class="hint">V.Adapter 适配服务，或官方 NAI / 任意 NAI 协议网关。无需带 <span class="mono">/ai</span>，会自动补全。</span>
+            </label>
+            <label class="field">
+              <span class="lab">API Key</span>
+              <input type="text" id="f-api_key" placeholder="适配服务的 nai_key；服务端留空时任意值均可">
+            </label>
+            <label class="field">
+              <span class="lab">模型名</span>
+              <input type="text" id="f-model" placeholder="官方 NAI / 网关必填，如 nai-diffusion-4-5-full；经 V.Adapter 时会被忽略">
+              <span class="hint">无默认值，必须手动填写。</span>
+            </label>
+            <div class="err" id="test-err"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">提示词形态</div><div class="card-desc">决定标记中的哪一部分送给上游</div></div>
+          </div>
+          <div class="card-body">
+            <label class="field">
+              <span class="lab">送给上游的内容</span>
+              <select id="f-prompt_format">
+                <option value="auto">auto — 按服务地址自动判断（默认）</option>
+                <option value="description">description — 始终送自然语言描述</option>
+                <option value="tags">tags — 始终送 Danbooru 标签</option>
+                <option value="both">both — 描述与标签合并送出</option>
+              </select>
+              <span class="hint">
+                标记格式为 <span class="mono">[ILLUST: 自然语言描述 | Danbooru,Tags]</span>，
+                两半分别对应两类上游。扩散模型（官方 NovelAI / NAI 网关）以标签为有效输入形态；
+                OpenAI 格式上游（含聊天模型）需要连贯的自然语言。<br>
+                <span class="mono">auto</span> 的判定规则：地址为
+                <span class="mono">127.0.0.1</span> / <span class="mono">localhost</span> /
+                <span class="mono">:8888</span>（即经 V.Adapter 转发）时送描述，其余送标签。
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">出图参数</div><div class="card-desc">直接发给上游</div></div></div>
+          <div class="card-body">
+            <div class="switch-row">
+              <div class="sw" id="sw-parallel" data-key="parallel"></div>
+              <div class="sr-text">
+                <div class="sr-lab">并行出图</div>
+                <div class="sr-hint">
+                  默认关闭（串行：一张完成再请求下一张）。开启后按「每轮上限」同时发起请求，
+                  先返回的先插入正文，互不等待。适用于允许并发的上游；
+                  存在限流或风控的中转服务应保持关闭。
+                </div>
+              </div>
+            </div>
+            <div class="grid c3" style="margin-top:14px">
+              <label class="field"><span class="lab">宽</span><input type="number" id="f-width" min="64" max="2048" step="8"></label>
+              <label class="field"><span class="lab">高</span><input type="number" id="f-height" min="64" max="2048" step="8"></label>
+              <label class="field"><span class="lab">采样步数</span><input type="number" id="f-steps" min="1" max="50"></label>
+            </div>
+            <div class="grid c3">
+              <label class="field"><span class="lab">CFG（scale）</span><input type="number" id="f-scale" min="0" max="30" step="0.5"></label>
+              <label class="field"><span class="lab">每轮上限（张）</span><input type="number" id="f-max_per_round" min="1" max="6"></label>
+              <label class="field"><span class="lab">单张超时（秒）</span><input type="number" id="f-timeout_sec" min="30" max="1800"></label>
+            </div>
+            <label class="field">
+              <span class="lab">两张之间的间隔（毫秒）</span>
+              <input type="number" id="f-interval_ms" min="0" max="60000" step="100">
+              <span class="hint">用于规避连点与限流；共享网关建议 0～1000。</span>
+            </label>
+            <label class="field">
+              <span class="lab">负面提示词</span>
+              <textarea id="f-negative" rows="3" placeholder="留空表示不加负面词"></textarea>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">触发规则</div><div class="card-desc">触发条件与去重规则</div></div></div>
+          <div class="card-body">
+            <div class="switch-row">
+              <div class="sw" id="sw-swipe_regenerate" data-key="swipe_regenerate"></div>
+              <div class="sr-text">
+                <div class="sr-lab">swipe 换回复时重新配图</div>
+                <div class="sr-hint">关闭后，切换到其他回复时可能残留与剧情不符的插图。</div>
+              </div>
+            </div>
+            <div class="switch-row">
+              <div class="sw" id="sw-strip_marker" data-key="strip_marker"></div>
+              <div class="sr-text">
+                <div class="sr-lab">正文里剔除 tag</div>
+                <div class="sr-hint">插图只走显示层，不进入 AI 上下文、不占用 Token。关闭后 AI 会看到自己输出的 tag。</div>
+              </div>
+            </div>
+            <label class="field" style="margin-top:14px">
+              <span class="lab">忽略的消息类型</span>
+              <input type="text" id="f-exclude_types" placeholder="impersonate">
+              <span class="hint">逗号分隔。默认忽略 <span class="mono">impersonate</span>。</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">提示词注入</div><div class="card-desc">引导 AI 输出 tag 的规则</div></div>
+            <button class="btn sm" id="btn-copy-rule">复制规则</button>
+          </div>
+          <div class="card-body">
+            <div class="switch-row">
+              <div class="sw" id="sw-inject_prompt" data-key="inject_prompt"></div>
+              <div class="sr-text">
+                <div class="sr-lab">自动把 ILLUST 规则交给模型</div>
+                <div class="sr-hint">关闭后需手动将下方规则粘贴到角色卡或世界书中。</div>
+              </div>
+            </div>
+            <div class="grid c2" style="margin-top:14px">
+              <label class="field" style="margin:0">
+                <span class="lab">规则注入位置</span>
+                <select id="f-inject_position">
+                  <option value="in_chat">in_chat — 插在回复之前（推荐）</option>
+                  <option value="in_prompt">in_prompt — 并入主系统提示词</option>
+                </select>
+              </label>
+              <label class="field" style="margin:0">
+                <span class="lab">插入深度（in_chat 时有效）</span>
+                <input type="number" id="f-inject_depth" min="0" max="20">
+              </label>
+            </div>
+            <div class="muted" style="margin-bottom:14px;font-size:12px;line-height:1.65">
+              输出模板由角色卡世界书强制约束时（常见于深度定制的角色卡），世界书通常在
+              <span class="mono">depth 0</span> 注入整套格式规范，其优先级高于主系统提示词中的规则。
+              此时应将注入位置设为 <span class="mono">in_chat</span> 且深度为 <span class="mono">0</span>，
+              使规则与该模板处于同一位置。若仍未生效，请使用「复制规则」将规则写入该角色卡的世界书，
+              使标记成为其输出模板的一部分。
+            </div>
+            <label class="field" style="margin-top:0">
+              <span class="lab">当前规则（只读）</span>
+              <textarea id="f-rule" rows="4" readonly></textarea>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">进阶</div><div class="card-desc">诊断</div></div>
+            <button class="btn sm danger" id="btn-reset">恢复默认值</button>
+          </div>
+          <div class="card-body">
+            <div class="switch-row">
+              <div class="sw" id="sw-debug" data-key="debug"></div>
+              <div class="sr-text">
+                <div class="sr-lab">控制台详细日志</div>
+                <div class="sr-hint">开启后，浏览器控制台输出 <span class="mono">[V.Canvas]</span> 前缀的过程日志。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+/* ─────────────────────────────────────────────────────────────
+   面板仅为前端：所有读写都通过 window.parent.__V_CANVAS_API__
+   交由酒馆侧的扩展本体执行。取不到该函数表示面板无控制权，
+   此时直接显示错误状态，不做静默降级。
+   ───────────────────────────────────────────────────────────── */
+const API = (window.parent && window.parent !== window) ? window.parent.__V_CANVAS_API__ : undefined;
+const READY = typeof API === 'function';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+let SETTINGS = null;
+let STATE = null;
+
+function toast(msg, kind = 'ok') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + kind;
+  el.innerHTML = esc(msg);
+  $('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+
+async function call(action, payload) {
+  if (!READY) return { ok: false, error: '未连接到扩展' };
+  try {
+    const r = await API(action, payload ?? null);
+    if (!r || typeof r !== 'object') return { ok: false, error: '扩展返回了无法解析的数据' };
+    return r;
+  } catch (e) {
+    return { ok: false, error: String(e && e.message ? e.message : e) };
+  }
+}
+
+/* ── 页面切换 ── */
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b === btn));
+    const name = btn.dataset.page;
+    document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + name));
+    toggleSidebar(false);
+    if (name === 'history') refreshHistory();
+  };
+});
+function toggleSidebar(open) {
+  document.querySelector('.sidebar').classList.toggle('open', open);
+  $('mask-mobile').classList.toggle('show', open);
+}
+$('btn-menu').onclick = () => toggleSidebar(true);
+
+/* ── 设置界面 ── */
+const TEXT_KEYS = ['base_url', 'api_key', 'model', 'negative', 'prompt_format', 'exclude_types', 'inject_position', 'ctx_url', 'ctx_key', 'ctx_model', 'ctx_style', 'ctx_quality', 'ctx_negative', 'jb_llm', 'jb_image'];
+const NUM_KEYS = ['width', 'height', 'steps', 'scale', 'max_per_round', 'timeout_sec', 'interval_ms', 'inject_depth', 'ctx_timeout_sec'];
+const BOOL_KEYS = ['enabled', 'swipe_regenerate', 'strip_marker', 'inject_prompt', 'debug', 'ctx_enabled', 'parallel'];
+
+function fillForm(s) {
+  SETTINGS = s;
+  for (const k of TEXT_KEYS) { const el = $('f-' + k); if (el) el.value = s[k] ?? ''; }
+  for (const k of NUM_KEYS) { const el = $('f-' + k); if (el) el.value = s[k] ?? ''; }
+  for (const k of BOOL_KEYS) { const el = $('sw-' + k); if (el) el.classList.toggle('on', !!s[k]); }
+}
+
+// 统一提交：单个字段变更即写入，返回 changed / notes
+async function commit(patch, label) {
+  const r = await call('settings.patch', patch);
+  if (!r.ok) { toast('保存失败：' + (r.error || '未知错误'), 'bad'); return false; }
+  if (r.data && r.data.settings) fillForm(r.data.settings);
+  const changed = (r.data && r.data.changed) || [];
+  const notes = (r.data && r.data.notes) || [];
+  if (changed.length) toast(label + '：已保存并生效');
+  if (notes.length) toast(notes.join('；'), 'bad');
+  await refreshOverview();
+  return true;
+}
+
+TEXT_KEYS.forEach(k => {
+  const el = $('f-' + k);
+  if (el) el.addEventListener('change', () => commit({ [k]: el.value }, '设置'));
+});
+NUM_KEYS.forEach(k => {
+  const el = $('f-' + k);
+  if (el) el.addEventListener('change', () => commit({ [k]: el.value }, '设置'));
+});
+BOOL_KEYS.forEach(k => {
+  const el = $('sw-' + k);
+  if (!el) return;
+  el.onclick = () => {
+    if (!READY) return;
+    const next = !el.classList.contains('on');
+    el.classList.toggle('on', next);           // 先反馈，失败时回滚
+    commit({ [k]: next }, k === 'enabled' ? '总开关' : '设置').then(ok => {
+      if (!ok) el.classList.toggle('on', !next);
+    });
+  };
+});
+
+/* ── 概览 ── */
+function kvSet(id, text) { const el = $(id); if (el) el.textContent = text; }
+
+const PROMPT_FORMAT_LABEL = {
+  auto: 'auto（按地址自动判断）',
+  description: 'description（自然语言描述）',
+  tags: 'tags（Danbooru 标签）',
+  both: 'both（描述 + 标签）',
+};
+
+async function refreshOverview() {
+  const r = await call('state');
+  if (!r.ok) { kvSet('pill-text', '扩展未连接'); $('pill').className = 'pill off'; return; }
+  const d = r.data || {};
+  STATE = d;
+  const s = d.settings || {};
+
+  const pill = $('pill');
+  if (d.enabled) { pill.className = 'pill'; kvSet('pill-text', '自动插画已开启'); }
+  else { pill.className = 'pill off'; kvSet('pill-text', '自动插画已关闭'); }
+  kvSet('foot-version', 'V.Canvas ' + (d.version || ''));
+
+  const box = $('stat-enabled-box');
+  box.className = 'stat ' + (d.enabled ? 'ok' : 'bad');
+  kvSet('stat-enabled', d.enabled ? '已开启' : '已关闭');
+  kvSet('stat-upstream', d.upstreamKind || '-');
+  kvSet('stat-images', String((d.images || []).length));
+
+  kvSet('ov-base', s.base_url || '（未配置）');
+  kvSet('ov-key', d.apiKeyMasked || '（未设置）');
+  kvSet('ov-model', s.model || '（空）');
+  kvSet('ov-params', `${s.width} × ${s.height} · ${s.steps} 步 · CFG ${s.scale}`);
+  kvSet('ov-prompt-format', PROMPT_FORMAT_LABEL[s.prompt_format] || s.prompt_format || '-');
+  kvSet('ov-max', (s.max_per_round || 0) + ' 张');
+  kvSet('ov-inject', s.inject_prompt
+    ? '开 · ' + (s.inject_position === 'in_prompt' ? 'in_prompt' : `in_chat(depth ${s.inject_depth})`)
+    : '关');
+  kvSet('ov-ctx', s.ctx_enabled ? '开 · ' + (s.ctx_model || '未填模型名') : '关');
+  kvSet('ov-strip', s.strip_marker ? '开' : '关');
+  kvSet('ov-swipe', s.swipe_regenerate ? '开' : '关');
+  kvSet('ov-exclude', s.exclude_types || '（无）');
+
+  const imgs = d.images || [];
+  const wrap = $('thumbs-wrap');
+  if (!imgs.length) {
+    wrap.innerHTML = '<div class="empty">本会话尚未生成插图。<br>当 AI 输出带 tag 的回复后，此处会显示生成结果。</div>';
+  } else {
+    wrap.innerHTML = '<div class="thumbs">' + imgs.map(it =>
+      '<div class="thumb">' +
+        '<img src="' + esc(it.url) + '" alt="illustration" loading="lazy">' +
+        '<div class="tb-meta"><b>第 ' + esc(it.messageId) + ' 条</b> · 第 ' + esc(it.index + 1) + ' 张<br>' +
+        esc((it.prompt || '').slice(0, 60)) + '</div>' +
+      '</div>').join('') + '</div>';
+  }
+}
+
+$('btn-refresh-overview').onclick = async () => { await refreshOverview(); toast('已刷新'); };
+
+/* ── 生成记录 ── */
+function fmtTime(t) {
+  if (!t) return '-';
+  const d = new Date(t);
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+async function refreshHistory() {
+  const wrap = $('history-wrap');
+  if (!wrap) return;
+  const r = await call('history.list');
+  if (!r.ok) {
+    kvSet('history-count', '读取失败');
+    wrap.innerHTML = '<div class="err">' + esc(r.error || '未知错误') + '</div>';
+    return;
+  }
+  const list = (r.data && r.data.history) || [];
+  kvSet('history-count', list.length ? '共 ' + list.length + ' 条' : '暂无记录');
+  if (!list.length) {
+    wrap.innerHTML = '<div class="empty">还没有生成过插画。<br>出图成功后会自动记录在此。</div>';
+    return;
+  }
+  wrap.innerHTML = '<div class="thumbs">' + list.map(it =>
+    '<div class="thumb">' +
+      '<a href="' + esc(it.url) + '" target="_blank" rel="noopener">' +
+        '<img src="' + esc(it.url) + '" alt="illustration" loading="lazy">' +
+      '</a>' +
+      '<div class="tb-meta"><b>' + esc(fmtTime(it.t)) + '</b>' +
+        (it.name ? ' · ' + esc(it.name) : '') +
+        '<br>' + esc((it.prompt || '').slice(0, 60)) + '</div>' +
+    '</div>').join('') + '</div>';
+}
+
+$('btn-history-refresh').onclick = async () => { await refreshHistory(); toast('已刷新'); };
+$('btn-history-clear').onclick = async () => {
+  if (!window.confirm('清空全部生成记录？保存到磁盘的图片文件不受影响，仅移除此处的条目。')) return;
+  const r = await call('history.clear');
+  if (!r.ok) { toast('清空失败：' + (r.error || ''), 'bad'); return; }
+  await refreshHistory();
+  toast('已清空');
+};
+
+/* ── 转译出图 ── */
+let TR_BUSY = false;
+
+function renderTranslateResult(d) {
+  const url = String(d.url || '');
+  $('tr-result').innerHTML =
+    '<div class="tr-preview"><img src="' + esc(url) + '" alt="illustration"></div>' +
+    '<label class="field" style="margin-top:14px">' +
+      '<span class="lab">实际送入上游的提示词</span>' +
+      '<textarea id="tr-prompt" rows="6" readonly></textarea>' +
+    '</label>' +
+    '<div class="row" style="margin-top:10px">' +
+      '<a class="btn sm" href="' + esc(url) + '" target="_blank" rel="noopener">在新标签页打开</a>' +
+    '</div>';
+  $('tr-prompt').value = d.prompt || '';
+}
+
+$('btn-tr-gen').onclick = async () => {
+  if (TR_BUSY) return;
+  const text = $('tr-text').value.trim();
+  if (!text) { toast('请输入描述', 'bad'); return; }
+  const btn = $('btn-tr-gen');
+  TR_BUSY = true;
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = '生成中…（扩写 + 出图，约 30~90 秒）';
+  $('tr-err').textContent = '';
+  const r = await call('translate.generate', { text, sizeMode: $('tr-size-mode').value });
+  TR_BUSY = false;
+  btn.disabled = false;
+  btn.textContent = old;
+  if (!r.ok) {
+    $('tr-err').textContent = r.error || '未知错误';
+    toast('转译出图失败', 'bad');
+    return;
+  }
+  renderTranslateResult(r.data || {});
+  toast('完成');
+};
+
+$('btn-tr-copy').onclick = async () => {
+  const el = $('tr-prompt');
+  if (!el || !el.value) { toast('还没有可复制的提示词', 'bad'); return; }
+  try { await navigator.clipboard.writeText(el.value); toast('提示词已复制到剪贴板'); }
+  catch {
+    el.select();
+    try { document.execCommand('copy'); toast('提示词已复制到剪贴板'); }
+    catch { toast('复制失败，请手动选中文本框内容', 'bad'); }
+  }
+};
+
+/* ── 上下文出图 ── */
+$('btn-ctx-test').onclick = async () => {
+  const btn = $('btn-ctx-test');
+  btn.disabled = true;
+  $('ctx-test-err').textContent = '正在连接…';
+  const r = await call('ctx.test');
+  btn.disabled = false;
+  if (r.ok) {
+    $('ctx-test-err').textContent = '';
+    toast('连接正常：' + ((r.data && r.data.message) || ''));
+  } else {
+    $('ctx-test-err').textContent = r.error || '未知错误';
+    toast('测试连接失败', 'bad');
+  }
+};
+
+let CTX_BUSY = false;
+$('btn-ctx-gen').onclick = async () => {
+  if (CTX_BUSY) return;
+  const btn = $('btn-ctx-gen');
+  CTX_BUSY = true;
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = '处理中…（分析 + 出图，约 30~120 秒）';
+  $('ctx-result').innerHTML = '<div class="empty">正在分析最后一条角色回复…</div>';
+  const r = await call('ctx.generate');
+  CTX_BUSY = false;
+  btn.disabled = false;
+  btn.textContent = old;
+  if (!r.ok) {
+    $('ctx-result').innerHTML = '<div class="err">' + esc(r.error || '未知错误') + '</div>';
+    toast('上下文出图失败', 'bad');
+    return;
+  }
+  const d = r.data || {};
+  const list = (d.prompts || []).map((p, i) => '<div class="kv"><span class="k">第 ' + (i + 1) + ' 张的提示词</span><span class="v">' + esc(p) + '</span></div>').join('');
+  $('ctx-result').innerHTML =
+    '<div class="muted" style="font-size:12.5px;line-height:1.7">已在聊天里第 ' + esc(d.messageId) + ' 条回复中就地插入 ' + esc(d.count) + ' 张插图。</div>' +
+    (list || '');
+  toast('已插入 ' + d.count + ' 张插图');
+  await refreshOverview();
+};
+
+$('btn-ctx-reload').onclick = async () => { await loadAll(); toast('已重新载入'); };
+$('btn-prompt-reload').onclick = async () => { await loadAll(); toast('已重新载入'); };
+
+/* ── 测试连接 / 复制规则 / 恢复默认 / 重新载入 ── */
+$('btn-test').onclick = async () => {
+  const btn = $('btn-test');
+  btn.disabled = true;
+  $('test-err').textContent = '正在连接…';
+  const r = await call('test');
+  btn.disabled = false;
+  if (r.ok) {
+    $('test-err').textContent = '';
+    toast('连接正常：' + (r.data && r.data.message ? r.data.message : ''));
+  } else {
+    $('test-err').textContent = (r.error || '未知错误') +
+      '　—　注意：部分 NAI 网关只放行出图接口，订阅端点被屏蔽；此处失败不代表服务不可用，请以实际能否出图为准。';
+    toast('测试连接失败', 'bad');
+  }
+};
+
+$('btn-copy-rule').onclick = async () => {
+  const text = $('f-rule').value || '';
+  try { await navigator.clipboard.writeText(text); toast('规则已复制到剪贴板'); }
+  catch {
+    $('f-rule').select();
+    try { document.execCommand('copy'); toast('规则已复制到剪贴板'); }
+    catch { toast('复制失败，请手动选中文本框内容', 'bad'); }
+  }
+};
+
+$('btn-reset').onclick = async () => {
+  if (!window.confirm('恢复出厂默认值？当前所有设置会被覆盖（聊天里已经出过的图不受影响）。')) return;
+  const r = await call('settings.reset');
+  if (!r.ok) { toast('恢复失败：' + (r.error || ''), 'bad'); return; }
+  fillForm(r.data.settings);
+  await refreshRule();
+  await refreshOverview();
+  toast('已恢复默认值');
+};
+
+$('btn-reload-settings').onclick = async () => { await loadAll(); toast('已重新载入'); };
+
+async function refreshRule() {
+  const r = await call('rule');
+  if (r.ok) $('f-rule').value = (r.data && r.data.rule) || '';
+}
+
+async function loadAll() {
+  const r = await call('settings.get');
+  if (!r.ok) { toast('读取设置失败：' + (r.error || ''), 'bad'); return; }
+  fillForm(r.data.settings);
+  await refreshRule();
+  await refreshOverview();
+}
+
+/* ── 启动 ── */
+(async function boot() {
+  if (!READY) {
+    $('bridge-warn').classList.add('show');
+    $('pill').className = 'pill off';
+    kvSet('pill-text', '扩展未连接');
+    document.querySelectorAll('.sw').forEach(el => el.classList.add('dis'));
+    // 只禁掉真正会写数据的控件，侧边导航保留可用
+    document.querySelectorAll('.content input, .content textarea, .content .btn').forEach(el => { el.disabled = true; });
+    $('thumbs-wrap').innerHTML = '<div class="empty">面板无控制权，无法读取数据。</div>';
+    return;
+  }
+  await loadAll();
+  // 面板打开期间会话持续变化，定期同步概览（只读）
+  setInterval(refreshOverview, 8000);
+})();
+</script>
+</body>
+</html>

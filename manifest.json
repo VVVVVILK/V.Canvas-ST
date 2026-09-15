@@ -1,0 +1,12 @@
+{
+    "display_name": "V.Canvas",
+    "loading_order": 110,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "VILK",
+    "version": "0.1.0",
+    "homePage": "",
+    "auto_update": false
+}

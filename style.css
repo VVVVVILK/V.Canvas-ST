@@ -1,0 +1,303 @@
+/* V.Canvas · 样式
+ *
+ * 六个部分：
+ *   1) 硬要求：消息中的插图必须独占一行、垂直排列；
+ *   2) 绘制中的原地占位符；
+ *   3) 出图进度悬浮卡片（分析 / 绘制期间的常驻状态窗，带终止按钮）；
+ *   4) 插图提示词浮层（点击插图查看该图对应的标记内容）；
+ *   5) 扩展抽屉（极简）；
+ *   6) 管理面板浮层。
+ *
+ * 注意：管理面板不跟随酒馆主题，面板自带一整套深色样式（见 panel.html 内联 CSS），
+ *       此处只负责浮层外壳。
+ */
+
+/* ── 1. 正文插图：独占一行（验收项：文字 → 图 → 文字 竖向排列，无浮动、无文字环绕）── */
+.mes_text img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 8px auto;
+}
+
+/* 扩展自身插入的插图补充圆角 */
+.mes_text p > img {
+    border-radius: 6px;
+}
+
+/* ── 2. 绘制中的原地占位符 ──
+   将正文中的 ILLUST tag 就地替换为该提示。仅修改 DOM、不落盘，
+   因此刷新或失败后聊天记录中不会残留「正在绘制」文本。 */
+.v_canvas_placeholder {
+    display: block;
+    margin: 8px 0;
+    padding: 8px 12px;
+    border-left: 3px solid var(--SmartThemeQuoteColor, #6a9fda);
+    border-radius: 6px;
+    background: var(--SmartThemeBlurTintColor, rgba(127, 127, 127, 0.08));
+    font-size: 0.92em;
+    opacity: 0.82;
+    animation: v_canvas_ph_pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes v_canvas_ph_pulse {
+    0%, 100% { opacity: 0.55; }
+    50%      { opacity: 0.95; }
+}
+
+/* ── 3. 出图进度悬浮卡片 ──
+   分析 / 绘制期间常驻，显示当前阶段并带「终止」按钮。
+   仅 DOM，不写入聊天记录；跟随酒馆主题变量。 */
+#v_canvas_progress {
+    position: fixed;
+    top: 64px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-12px);
+    z-index: 9997;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: min(560px, calc(100vw - 32px));
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--SmartThemeBorderColor, rgba(127, 127, 127, 0.35));
+    background: var(--SmartThemeBlurTintColor, rgba(30, 30, 34, 0.94));
+    color: var(--SmartThemeBodyColor, #e5e7eb);
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+#v_canvas_progress.show {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+}
+
+#v_canvas_progress .v_canvas_pg_mark {
+    flex: none;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+    font-family: ui-monospace, Consolas, monospace;
+    color: #fff;
+    background: linear-gradient(135deg, #10b981, #22c55e);
+}
+
+#v_canvas_progress .v_canvas_pg_body {
+    flex: 1;
+    min-width: 0;
+}
+
+#v_canvas_progress .v_canvas_pg_title {
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+#v_canvas_progress .v_canvas_pg_text {
+    margin-top: 2px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    opacity: 0.85;
+}
+
+#v_canvas_progress .v_canvas_pg_btn {
+    flex: none;
+}
+
+/* 进行中：标题前显示脉冲圆点 */
+#v_canvas_progress:not(.v_canvas_pg_done):not(.v_canvas_pg_err) .v_canvas_pg_title::before {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: #22c55e;
+    animation: v_canvas_pg_pulse 1.1s ease-in-out infinite;
+    vertical-align: middle;
+}
+
+#v_canvas_progress.v_canvas_pg_finishing .v_canvas_pg_title::before {
+    background: var(--SmartThemeQuoteColor, #d9a441);
+}
+
+#v_canvas_progress.v_canvas_pg_done {
+    border-color: rgba(34, 197, 94, 0.5);
+}
+
+#v_canvas_progress.v_canvas_pg_err {
+    border-color: rgba(239, 68, 68, 0.55);
+}
+
+#v_canvas_progress.v_canvas_pg_err .v_canvas_pg_text {
+    color: var(--SmartThemeQuoteColor, #f87171);
+}
+
+@keyframes v_canvas_pg_pulse {
+    0%, 100% { opacity: 0.35; transform: scale(0.85); }
+    50%      { opacity: 1;    transform: scale(1); }
+}
+
+@media (max-width: 640px) {
+    #v_canvas_progress { top: 52px; padding: 10px 12px; }
+    #v_canvas_progress .v_canvas_pg_mark { display: none; }
+}
+
+/* ── 4. 插图提示词浮层 ──
+   点击插图时按需创建，关闭即移除；不写入聊天记录、不参与渲染流程。 */
+#v_canvas_prompt_overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+#v_canvas_prompt_overlay .v_canvas_prompt_box {
+    width: min(640px, 100%);
+    max-height: min(70vh, 620px);
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--SmartThemeBlurTintColor, #1f2937);
+    color: var(--SmartThemeBodyColor, #e5e7eb);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+}
+
+#v_canvas_prompt_overlay .v_canvas_prompt_head {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(127, 127, 127, 0.35);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+#v_canvas_prompt_overlay .v_canvas_prompt_body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 4px 16px 16px;
+}
+
+#v_canvas_prompt_overlay .v_canvas_prompt_section {
+    margin-top: 12px;
+}
+
+#v_canvas_prompt_overlay .v_canvas_prompt_lab {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    margin-bottom: 5px;
+}
+
+#v_canvas_prompt_overlay .v_canvas_prompt_text {
+    font-size: 13.5px;
+    line-height: 1.65;
+    word-break: break-word;
+    white-space: pre-wrap;
+    padding: 9px 11px;
+    border-radius: 8px;
+    background: rgba(127, 127, 127, 0.12);
+}
+
+#v_canvas_prompt_overlay .v_canvas_prompt_text.mono {
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px;
+}
+
+#v_canvas_prompt_overlay .v_canvas_prompt_none {
+    opacity: 0.55;
+}
+
+/* ── 5. 扩展抽屉（仅名称 + 版本 + 一个按钮）── */
+#v_canvas_drawer .v_canvas_version {
+    font-size: 11px;
+    color: var(--SmartThemeBodyColor);
+    opacity: 0.6;
+    margin-left: 6px;
+    font-weight: 400;
+}
+
+#v_canvas_drawer .v_canvas_content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 6px;
+}
+
+#v_canvas_drawer .v_canvas_row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+#v_canvas_open_panel {
+    width: 100%;
+    justify-content: center;
+}
+
+/* ── 6. 管理面板浮层 ── */
+#v_canvas_panel_overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.78);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 18px;
+}
+
+#v_canvas_panel_overlay .v_canvas_panel_chrome {
+    width: min(1280px, 100%);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    flex: none;
+}
+
+#v_canvas_panel_overlay .v_canvas_panel_title {
+    letter-spacing: 0.02em;
+}
+
+#v_canvas_panel_overlay .v_canvas_panel_chrome .menu_button {
+    color: #fff;
+}
+
+#v_canvas_panel_iframe {
+    width: min(1280px, 100%);
+    flex: 1;
+    min-height: 0;
+    border: none;
+    border-radius: 12px;
+    background: #0f172a;          /* 面板自身底色，避免加载瞬间白屏闪烁 */
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+}
+
+@media (max-width: 960px) {
+    #v_canvas_panel_overlay { padding: 8px; }
+    #v_canvas_panel_overlay .v_canvas_panel_chrome { margin-bottom: 6px; }
+}
