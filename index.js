@@ -493,6 +493,9 @@ async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMo
                 scale: cfg.scale,
                 timeoutMs: cfg.timeout_sec * 1000,
                 signal,
+                // V站 专属密钥签名（默认关闭；仅 sign_mode 开启且密钥为 vcs_ 时才附加请求头）
+                salt: cfg.exclusive_salt,
+                signMode: cfg.sign_mode,
             });
 
             const subFolder = ctx.name2 || '';
@@ -1052,7 +1055,10 @@ function installBridge() {
 
                 case 'test': {
                     const c = s();
-                    const message = await testConnection({ baseUrl: c.base_url, apiKey: c.api_key });
+                    const message = await testConnection({
+                        baseUrl: c.base_url, apiKey: c.api_key,
+                        salt: c.exclusive_salt, signMode: c.sign_mode,
+                    });
                     return { ok: true, data: { message } };
                 }
 
@@ -1083,6 +1089,8 @@ function installBridge() {
                         scale: c.scale,
                         timeoutMs: c.timeout_sec * 1000,
                         expand: true,
+                        salt: c.exclusive_salt,
+                        signMode: c.sign_mode,
                     });
 
                     const ctx = getContext();

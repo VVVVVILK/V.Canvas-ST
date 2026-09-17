@@ -1,0 +1,59 @@
+﻿=== syntax ===
+index.js => exit=0 
+lib\marker.js => exit=0 
+lib\settings.js => exit=0 
+lib\nai-api.js => exit=0 
+=== tests ===
+JSZip loaded: function
+
+== marker.js ==
+[OK]   single standard marker
+[OK]   tags win over description
+[OK]   exact start/end offsets
+[OK]   full-width colon + no pipe -> desc fallback
+[OK]   extra spaces normalised
+[OK]   newline inside marker tolerated
+[OK]   no marker -> empty
+[OK]   hasMarkers quick check
+[OK]   two markers numbered in order
+[OK]   inline replace below its own paragraph
+[OK]   no triple newline leftover
+[OK]   failed marker left untouched
+[OK]   all failed -> null
+[OK]   stripMarkers removes markers, no leftover blank lines
+[OK]   stripMarkers idempotent
+[OK]   stripMarkers keeps surrounding prose
+
+== effectiveSource ==
+[OK]   no state -> mode new
+[OK]   unchanged text -> mode same
+[OK]   marker already stripped -> mode same
+[OK]   continue/append -> source re-joined, old marker kept
+[OK]   append keeps old marker indices aligned
+[OK]   swipe to another reply -> mode reset
+
+== nai-api.js ==
+[OK]   zip response -> base64 decodes to fixture png
+[OK]   zip entry extension detected as png
+[OK]   payload.input carries the prompt
+[OK]   payload sends both negative_prompt and uc
+[OK]   payload is NAI shape (action/parameters)
+[OK]   model field is passed through as user string
+[OK]   bare image bytes recognised
+[OK]   b64_json inside JSON recognised
+[OK]   non-2xx relays upstream message verbatim
+[OK]   HTTP 200 with JSON error still fails
+[OK]   empty body -> human error
+[OK]   unreachable -> tells user to start adapter / check CORS
+[OK]   blank baseUrl -> explicit error
+[OK]   testConnection returns human text
+
+RESULT: 36 passed / 0 failed
+EXIT=0
+=== hash check ===
+manifest.json identical=True
+index.js identical=True
+style.css identical=True
+lib\marker.js identical=True
+lib\nai-api.js identical=True
+lib\settings.js identical=True
