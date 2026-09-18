@@ -1,4 +1,0 @@
-面板调用: ctx.generate, ctx.test, history.clear, history.list, rule, settings.get, settings.patch, settings.reset, state, test, translate.generate
-桥接实现: ctx.generate, ctx.test, history.clear, history.list, rule, settings.get, settings.patch, settings.reset, state, test, translate.generate
-设置里共 31 个字段；面板未覆盖: （无）
-RESULT: 动作契约一致

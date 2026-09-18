@@ -80,7 +80,8 @@ await new Promise(r => server.listen(18999, '127.0.0.1', r));
 
 const { generateIllustration, testConnection } = await import('../lib/nai-api.js');
 const { findMarkers, buildDisplayText, stripMarkers, hasMarkers, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream, MAX_MARKER_LEN } = await import('../lib/marker.js');
-const { parseAnalysisJSON, applyMarkers, findAnchor, buildAnalysisMessages } = await import('../lib/analysis.js');
+const { parseAnalysisJSON, applyMarkers, findAnchor, buildAnalysisMessages, buildAnalysisParts, analysisTokenBudget, resolveCtxSource } = await import('../lib/analysis.js');
+const { artistAppliesTo, artistPromptFor, withArtistPrompt, sanitizeArtistPrompt, sanitizeArtistName, ARTIST_PROMPT_MAX } = await import('../lib/artist.js');
 
 let pass = 0, fail = 0;
 const report = [];
@@ -278,6 +279,92 @@ report.push('', '== analysis.js（上下文出图）==');
         !!dt2 && dt2.includes('她站在雨夜的窗前，看着霓虹。\n\n![Illustration](/api/images/a.png)'), JSON.stringify(dt2));
     ok('the failed one stays as a marker', !!dt2 && dt2.includes('[ILLUST: a cat on the roof'));
     ok('stripping leaves clean prose', !stripMarkers(withMarkers).includes('ILLUST'), JSON.stringify(stripMarkers(withMarkers)));
+}
+
+report.push('', '== 分析来源与输出预算 ==');
+{
+    // 两条分析路径（跟随酒馆主 API / 自定义服务）共用同一份提示词与同一个预算，
+    // 这里锁住「共用」这件事，避免以后改一处忘一处导致换来源后行为不一致。
+    const meta = { work: '角色卡：示例角色', style: '示例画风', quality: 'Q', negative: 'N', jb: 'JB' };
+    const parts = buildAnalysisParts('正文', '前文', 3, meta);
+    const msgs = buildAnalysisMessages('正文', '前文', 3, meta);
+    ok('buildAnalysisParts system matches buildAnalysisMessages', parts.system === msgs[0].content);
+    ok('buildAnalysisParts user matches buildAnalysisMessages', parts.user === msgs[1].content);
+    ok('buildAnalysisParts role shape is system+user only', msgs.length === 2 && msgs[0].role === 'system' && msgs[1].role === 'user');
+
+    // 输出预算：随张数放大，且封顶 —— 超出上限会让上游截断 JSON，
+    // 表现为「分析成功但一张图都不出」，因此上限与放大都要锁住。
+    ok('budget grows with image count', analysisTokenBudget(2) > analysisTokenBudget(1));
+    ok('budget for 1 image stays usable', analysisTokenBudget(1) === 1800, String(analysisTokenBudget(1)));
+    ok('budget for max 6 images = 7800', analysisTokenBudget(6) === 7800, String(analysisTokenBudget(6)));
+    // 上限只是保险：允许的 1~6 张都够不到它，越界输入才会被夹住。
+    ok('budget capped at 8192 for out-of-range input', analysisTokenBudget(99) === 8192, String(analysisTokenBudget(99)));
+    ok('budget tolerates junk input', analysisTokenBudget(undefined) === analysisTokenBudget(1) && analysisTokenBudget('x') === analysisTokenBudget(1));
+
+    // 来源解析：决定本轮到底发不发请求，三种结果都要锁住。
+    ok('source main wins by default', resolveCtxSource('main', {}) === 'main');
+    ok('source unknown value falls back to main', resolveCtxSource('whatever', {}) === 'main');
+    ok('source undefined falls back to main', resolveCtxSource(undefined, {}) === 'main');
+    ok('source custom with url+model -> custom',
+        resolveCtxSource('custom', { url: 'http://127.0.0.1:4000/v1', model: 'qwen3.8-max' }) === 'custom');
+    ok('source custom missing model -> null',
+        resolveCtxSource('custom', { url: 'http://127.0.0.1:4000/v1', model: '' }) === null);
+    ok('source custom missing url -> null',
+        resolveCtxSource('custom', { url: '', model: 'm' }) === null);
+    ok('source custom with blank-only fields -> null',
+        resolveCtxSource('custom', { url: '   ', model: '  ' }) === null);
+}
+
+report.push('', '== 画师串 ==');
+{
+    const ART = '0.8::artist:yalmyu::, artist:sh_(shinh)';
+    const presets = [
+        { id: 'art_1', name: '厚涂', prompt: ART },
+        { id: 'art_2', name: '赛璐璐', prompt: 'artist:foo' },
+        { id: 'art_3', name: '空内容', prompt: '   ' },
+    ];
+
+    // ── 形态门控：本模块存在的全部理由，必须锁死 ──
+    // 送自然语言描述时（经 V.Adapter 的 OpenAI 格式上游）拼画师名会污染描述，所以不拼。
+    ok('description mode never applies the artist string', artistAppliesTo('description') === false);
+    ok('tags mode applies it', artistAppliesTo('tags') === true);
+    ok('both mode applies it', artistAppliesTo('both') === true);
+    ok('unknown mode does not apply it', artistAppliesTo('nope') === false && artistAppliesTo(undefined) === false);
+
+    ok('description: prompt passes through byte-for-byte',
+        withArtistPrompt('a knight in old chainmail', ART, 'description') === 'a knight in old chainmail');
+    ok('description: no leftover comma added',
+        withArtistPrompt('x', ART, 'description') === 'x');
+    ok('tags: artist string goes first',
+        withArtistPrompt('1boy, sword', ART, 'tags') === ART + ', 1boy, sword');
+    ok('both: same assembly as tags',
+        withArtistPrompt('1boy, sword', ART, 'both') === withArtistPrompt('1boy, sword', ART, 'tags'));
+    ok('tags + no artist selected -> unchanged',
+        withArtistPrompt('1boy, sword', '', 'tags') === '1boy, sword');
+    ok('tags + empty prompt -> artist only',
+        withArtistPrompt('', ART, 'tags') === ART);
+    ok('tags + whitespace prompt -> artist only',
+        withArtistPrompt('   ', ART, 'tags') === ART);
+    ok('null prompt treated as empty', withArtistPrompt(null, ART, 'tags') === ART);
+
+    // ── 选中项的解析：三种「不生效」都要归到空串 ──
+    ok('selected id resolves to its content', artistPromptFor(presets, 'art_1') === ART);
+    ok('no selection -> empty', artistPromptFor(presets, '') === '');
+    ok('undefined selection -> empty', artistPromptFor(presets, undefined) === '');
+    // 悬空 id（条目已被删）：不生效，但扩展侧刻意不改写存储里的 id
+    ok('dangling id -> empty', artistPromptFor(presets, 'art_gone') === '');
+    ok('blank-only content -> empty', artistPromptFor(presets, 'art_3') === '');
+    ok('non-array presets tolerated -> empty', artistPromptFor(null, 'art_1') === '');
+    ok('junk entries skipped', artistPromptFor([null, { id: 'art_x' }], 'art_x') === '');
+
+    // ── 清洗 ──
+    ok('newlines and runs of spaces collapse to single spaces',
+        sanitizeArtistPrompt('a,\n  b\t\tc') === 'a, b c');
+    ok('artist prompt capped', sanitizeArtistPrompt('x'.repeat(ARTIST_PROMPT_MAX + 50)).length === ARTIST_PROMPT_MAX);
+    ok('artist name trimmed', sanitizeArtistName('  厚涂写实  ') === '厚涂写实');
+    ok('artist name capped at 60', sanitizeArtistName('n'.repeat(100)).length === 60);
+    ok('multi-line artist string survives as one line',
+        !withArtistPrompt('body', 'a,\nb', 'tags').includes('\n'));
 }
 
 report.push('', '== effectiveSource ==');

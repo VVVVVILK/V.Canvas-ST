@@ -138,6 +138,18 @@ input[type=number]{-moz-appearance:textfield}
 #bridge-warn{display:none;margin:14px 0 0;padding:14px 16px;border-radius:10px;border:1px solid hsl(0 72% 58% / .45);background:hsl(0 72% 58% / .1);color:var(--fg);font-size:13px;line-height:1.7}
 #bridge-warn.show{display:block}
 #bridge-warn b{color:var(--danger)}
+/* 画师串列表：每条是一个自足的小块（名字 + 内容 + 删除），整体重绘，故用事件委托绑监听 */
+.artist-item{margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.artist-item:first-child{margin-top:8px}
+.artist-head{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.artist-head input{flex:1;min-width:0}
+.artist-item textarea{width:100%;resize:vertical}
+/* 需要用户看清的说明块。字号与正文同为 14px、行高更松 —— 用户明确要求「看得清清楚楚」 */
+.notice{margin-bottom:16px;padding:16px 18px;border-radius:10px;border:1px solid hsl(200 80% 55% / .4);background:hsl(200 80% 55% / .09);font-size:14px;line-height:1.9}
+.notice:last-child{margin-bottom:0}
+.notice b{color:var(--info)}
+.notice.warn{border-color:hsl(38 92% 50% / .45);background:hsl(38 92% 50% / .09)}
+.notice.warn b{color:var(--warning)}
 </style>
 </head>
 <body>
@@ -325,23 +337,68 @@ input[type=number]{-moz-appearance:textfield}
               <textarea id="f-jb_image" rows="8" placeholder="留空 = 完全不生效。用于出图上游拒绝生成某些画面时。"></textarea>
               <span class="hint">
                 填写后原样拼到<b>出图提示词的最前面</b>（自动插画与转译出图均生效）。
-                针对的是「画图的模型 / 中转」的审核 —— 内容形式通常是 tag 或画面前缀。
+                它的实质是一个<b>提示词前缀</b>，不是万能钥匙。
               </span>
             </label>
+            <div class="notice warn">
+              <b>它能起多大作用，完全取决于「拒绝」发生在哪一层 —— 先看清，别指望它一定能解掉审核</b>
+              <br>· <b>模型自身拒答</b>（靠指令对齐的模型，例如聊天画图模型、多模态模型）：
+              <b>有机会</b>被提示词影响 —— 这是本栏唯一真正有作用点的情况，但<b>不保证成功</b>。
+              <br>· <b>扩散模型的过滤器</b>（直连官方 NAI / 本地 SD / ComfyUI）：
+              模型本身不会「拒答」，起作用的是服务端或采样器旁的过滤器。措辞周旋有时有效；
+              但若它按标签命中名单，那看的是你的标签、不是你写的前缀 —— 这时<b>怎么措辞都没用</b>。
+              另外本地 ComfyUI / SD 通常本就没有审核，<b>填了不会有坏处，但也没有意义</b>。
+              <br>· <b>平台级硬过滤</b>（图像 API 自带的内容策略、或对出图结果再做一次的安全分类）：
+              <b>基本无用</b> —— 请求在服务端就被拦下，模型根本轮不到，提示词怎么写都不会放行。
+              <br><b>那为什么直连官方 NAI「不需要」这一栏？</b>
+              因为<b>扩散模型没有「拒答」这个环节</b> —— 它不做语言理解，只是按你的提示词采样出图，
+              压根不存在「我不画这个」的判断可以被打动；官方付费订阅本身也允许成人向内容。
+              所以直连 NAI 时这一栏基本是多余的：万一真被拦，那是<b>过滤器或中转站</b>在做，
+              对策是改措辞或换线路，而不是「破限」。
+              <br>所以本栏的准确定位是「<b>有机会影响上游的拒答</b>」，请当成一个可选的提示词前缀来理解。
+              反复尝试还可能触发上游风控，<b>合规与账号风险由使用者自行承担</b>。
+            </div>
             <div class="muted" style="font-size:12px;line-height:1.65;margin-top:10px">
-              本插件不内置任何内容，两栏为空时与未添加本功能完全相同；内容与用途由使用者自行填写、自行把握。
+              本插件不内置任何内容，两栏为空时与未添加本功能完全相同；填写内容与用途由使用者自行把握，
+              对上游服务的合规与账号风险亦由使用者自行承担。
             </div>
           </div>
         </div>
 
         <div class="card">
-          <div class="card-head"><div><div class="card-title">作用范围与请求方式</div><div class="card-desc">这三栏在什么时候生效</div></div></div>
+          <div class="card-head">
+            <div><div class="card-title">画师串</div><div class="card-desc">只在「直连官方 NAI / NAI 网关」时生效</div></div>
+            <button class="btn sm" id="btn-artist-add">新增一条</button>
+          </div>
+          <div class="card-body">
+            <div class="notice">
+              <b>为什么只有一部分人用得上</b>
+              两条出图链路拿到的东西根本不同：
+              <br>· <b>直连官方 NovelAI / NAI 网关</b>（扩散模型）：送出去的是<b>标签串</b>，
+              画师串拼在画面 tag 之前，用来锁定整幅画的画风基调。
+              <br>· <b>经 V.Adapter（OpenAI 格式上游）</b>：送出去的是<b>自然语言描述</b>，
+              而且图是<b>上游模型自己画完、把成品交回来的</b>，并不是 NAI 那种「按你的提示词逐帧采样现画」。
+              往一段描述里塞画师名只会污染描述，所以这条链路<b>会自动跳过画师串</b>。
+            </div>
+            <label class="field">
+              <span class="lab">当前使用的画师串</span>
+              <select id="f-active_artist"></select>
+              <span class="hint">选「不使用」即完全不拼。切换后下一次出图生效 —— 已经画好的图不会重画。</span>
+            </label>
+            <div id="artist-list"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">作用范围与请求方式</div><div class="card-desc">上面质量词 / 负面词 / 画风三栏的生效方式</div></div></div>
           <div class="card-body">
             <div class="muted" style="font-size:12.5px;line-height:1.8">
-              仅作用于<b>上下文出图</b>路线。标记驱动路线下，提示词由剧情模型直接写在正文的
+              这三栏只作用于<b>上下文出图</b>路线 —— 它们是发给<b>分析模型</b>的要求。
+              标记驱动路线下，提示词由剧情模型直接写在正文的
               <span class="mono">[ILLUST: …]</span> 中，不经过此处。
               <br>分析模型每次请求都是一次全新的单轮对话，不携带历史轮次；
               本页填写的内容会随每次请求完整发送，不会被后续对话稀释或覆盖。
+              <br><b>画师串不在这三栏之内</b>：它拼在发往<b>出图上游</b>的提示词里，作用方式见上一张卡片。
             </div>
           </div>
         </div>
@@ -395,14 +452,15 @@ input[type=number]{-moz-appearance:textfield}
         <div class="page-head">
           <h1>上下文出图</h1>
           <p>
-            另行配置一个文字模型，由其阅读正文与前文，判定配图位置并生成出图提示词，
-            再交由当前出图上游作画。该路线不依赖剧情模型配合，适用于各类角色卡。
+            由一个文字模型阅读正文与前文，判定配图位置并生成出图提示词，再交由当前出图上游作画。
+            该路线不依赖剧情模型配合，适用于各类角色卡。
+            <b>默认即开启，且默认使用酒馆主 API —— 装好就能用，无需配置。</b>
           </p>
         </div>
 
         <div class="card">
           <div class="card-head">
-            <div><div class="card-title">总开关</div><div class="card-desc">开启后，角色回复里没有标记时自动走这条路线</div></div>
+            <div><div class="card-title">总开关</div><div class="card-desc">默认开启：角色回复里没有标记时自动走这条路线</div></div>
             <button class="btn sm" id="btn-ctx-reload">重新载入</button>
           </div>
           <div class="card-body">
@@ -411,8 +469,8 @@ input[type=number]{-moz-appearance:textfield}
               <div class="sr-text">
                 <div class="sr-lab">启用上下文出图</div>
                 <div class="sr-hint">
-                  与标记驱动路线并存且互不重复：正文已含 <span class="mono">[ILLUST: …]</span> 时走标记路线（无额外等待）；
-                  不含标记时才调用分析模型。
+                  与标记驱动路线并存且互不重复：正文已含 <span class="mono">[ILLUST: …]</span> 时走标记路线；
+                  不含标记时才调用分析模型。<b>默认开启，装好即可用</b>。
                 </div>
               </div>
             </div>
@@ -421,24 +479,42 @@ input[type=number]{-moz-appearance:textfield}
 
         <div class="card">
           <div class="card-head">
-            <div><div class="card-title">分析模型</div><div class="card-desc">OpenAI 兼容聊天接口，与出图上游相互独立</div></div>
-            <button class="btn sm" id="btn-ctx-test">测试连接</button>
+            <div><div class="card-title">分析模型</div><div class="card-desc">读正文、定位置、写提示词的那个模型</div></div>
+            <button class="btn sm" id="btn-ctx-test">查看 / 测试</button>
           </div>
           <div class="card-body">
             <label class="field">
-              <span class="lab">API 地址</span>
-              <input type="text" id="f-ctx_url" placeholder="https://api.openai.com/v1　或　http://127.0.0.1:4000/v1">
-              <span class="hint">任意 OpenAI 兼容服务：官方、中转、本地反代均可。与「设置」页的出图地址互不影响。</span>
+              <span class="lab">用哪个模型来读</span>
+              <select id="f-ctx_source">
+                <option value="main">跟随酒馆主 API（推荐 · 零配置）</option>
+                <option value="custom">自定义一个模型</option>
+              </select>
+              <span class="hint">
+                选「跟随酒馆主 API」时，直接使用你在酒馆里正在聊天的那个模型：不必填任何地址与密钥，
+                请求由酒馆转发，也不受浏览器跨域限制。<b>代价</b>是换主模型会连带影响分析质量，
+                且主模型偏贵 / 偏慢时每轮都会多付一次。想解耦就改选「自定义一个模型」。
+              </span>
             </label>
-            <label class="field">
-              <span class="lab">API Key</span>
-              <input type="text" id="f-ctx_key" placeholder="该服务的密钥；不需要鉴权的本地服务可留空">
-            </label>
-            <label class="field">
-              <span class="lab">模型名</span>
-              <input type="text" id="f-ctx_model" placeholder="如 gpt-4o-mini、qwen3.8-max、deepseek-chat">
-              <span class="hint">无默认值，须手动填写。该模型仅承担分镜与提示词生成，建议选用轻量模型。</span>
-            </label>
+            <div class="muted" style="font-size:12px;line-height:1.65;margin-bottom:14px">
+              当前生效：<b id="ctx-active">-</b>
+            </div>
+
+            <div id="ctx-custom-fields">
+              <label class="field">
+                <span class="lab">API 地址</span>
+                <input type="text" id="f-ctx_url" placeholder="https://api.openai.com/v1　或　http://127.0.0.1:4000/v1">
+                <span class="hint">任意 OpenAI 兼容服务：官方、中转、本地反代均可。与「设置」页的出图地址互不影响。</span>
+              </label>
+              <label class="field">
+                <span class="lab">API Key</span>
+                <input type="text" id="f-ctx_key" placeholder="该服务的密钥；不需要鉴权的本地服务可留空">
+              </label>
+              <label class="field">
+                <span class="lab">模型名</span>
+                <input type="text" id="f-ctx_model" placeholder="如 gpt-4o-mini、qwen3.8-max、deepseek-chat">
+                <span class="hint">无默认值，须手动填写。该模型仅承担分镜与提示词生成，建议选用轻量模型。</span>
+              </label>
+            </div>
             <div class="muted" style="font-size:12px;line-height:1.65;margin-bottom:14px">
               画风、正面质量提示词、负面提示词与<b>破限词</b>在<b>「提示词」页</b>填写，本页不再重复配置。
               破限词会随本页分析模型的每次请求一并发送 —— 正文含血腥、成人向内容导致分析拒答时，在那一栏填入附加说明即可。
@@ -488,7 +564,7 @@ input[type=number]{-moz-appearance:textfield}
 
         <div class="card">
           <div class="card-head">
-            <div><div class="card-title">总开关</div><div class="card-desc">关闭后，即使 AI 回复中包含 tag 也不会出图</div></div>
+            <div><div class="card-title">总开关</div><div class="card-desc">默认开启；关闭后两条配图路线都停</div></div>
             <button class="btn sm" id="btn-reload-settings">重新载入</button>
           </div>
           <div class="card-body">
@@ -496,7 +572,10 @@ input[type=number]{-moz-appearance:textfield}
               <div class="sw" id="sw-enabled" data-key="enabled"></div>
               <div class="sr-text">
                 <div class="sr-lab">启用自动插画</div>
-                <div class="sr-hint">检测到 <span class="mono">[ILLUST: …]</span> tag 就自动出图并就地插入。</div>
+                <div class="sr-hint">
+                  总开关。<b>默认已开启</b>。关闭后，无论是正文里的 <span class="mono">[ILLUST: …]</span> tag、
+                  还是「上下文出图」的分析结果，都不会出图。
+                </div>
               </div>
             </div>
           </div>
@@ -508,6 +587,15 @@ input[type=number]{-moz-appearance:textfield}
             <button class="btn sm" id="btn-test">测试连接</button>
           </div>
           <div class="card-body">
+            <div class="notice warn">
+              <b>先看清两条链路的区别，能省掉大量困惑</b>
+              <br>· <b>直连官方 NovelAI / NAI 网关</b>：真正的<b>扩散模型现画</b> ——
+              你的提示词（标签、画师串）与尺寸步数等参数，都是直接作用于作画过程的。
+              <br>· <b>经 V.Adapter（OpenAI 格式上游）</b>：图是由<b>上游模型自己画完、把成品返回给你</b>的，
+              <b>不是</b> NAI 那种「按你的提示词逐帧采样现画」。
+              因此<b>画师串、Danbooru 画师标签这类只有扩散模型才认识的东西，在这条链路上不适用</b>
+              （插件会自动跳过，不会拼进去）；<b>画风与画面由上游决定</b>，本插件不参与作画过程。
+            </div>
             <label class="field">
               <span class="lab">NAI 服务地址</span>
               <input type="text" id="f-base_url" placeholder="留空 = 自动使用同页面的 V.Adapter">
@@ -654,6 +742,41 @@ input[type=number]{-moz-appearance:textfield}
 
         <div class="card">
           <div class="card-head">
+            <div><div class="card-title">V站 专属密钥签名</div><div class="card-desc">只在密钥是 vcs_ 开头时才生效</div></div>
+          </div>
+          <div class="card-body">
+            <div class="muted" style="font-size:12.5px;line-height:1.8;margin-bottom:14px">
+              V站 发两种密钥：<b>通用密钥</b>（无前缀）任何 NAI 客户端都能用；<b>专属密钥</b>
+              （<span class="mono">vcs_</span> 开头）必须随请求附一个签名，否则 V站 直接 403、不降级。
+              插件检测到专属密钥时会自动算签名，且<b>盐由站点下发、轮换后自动跟随</b> ——
+              所以下面两项一般情况下都不需要动。
+              用 NovelAI 官方或任意第三方中转时，本卡片的内容完全不生效。
+            </div>
+            <label class="field">
+              <span class="lab">签名总闸</span>
+              <select id="f-sign_mode">
+                <option value="auto">auto（推荐）：仅 vcs_ 专属密钥附加签名</option>
+                <option value="off">off：任何密钥都不加签名（排障用）</option>
+                <option value="on">on：任何密钥都加签名（自建站点用）</option>
+              </select>
+              <span class="hint">
+                选 <span class="mono">off</span> 时，连你自己的专属密钥也会被 V站 拒绝 —— 只在排障或回滚时用。
+              </span>
+            </label>
+            <label class="field">
+              <span class="lab">专属签名盐（一般留空）</span>
+              <input type="text" id="f-exclusive_salt" placeholder="留空即可：插件会自动向站点查询当前盐">
+              <span class="hint">
+                留空 = 出图前自动问站点要当前盐，站点轮换盐之后无需更新插件。
+                只有在<b>自建了 V站 且改过 exclusiveSalt</b>、或站点版本过老取不到盐时，才在这里填与该站点一致的值。
+                填错会导致专属密钥签名不通过（通用密钥不受影响）。
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
             <div><div class="card-title">进阶</div><div class="card-desc">诊断</div></div>
             <button class="btn sm danger" id="btn-reset">恢复默认值</button>
           </div>
@@ -789,16 +912,128 @@ function toggleSidebar(open) {
 $('btn-menu').onclick = () => toggleSidebar(true);
 
 /* ── 设置界面 ── */
-const TEXT_KEYS = ['base_url', 'api_key', 'model', 'negative', 'prompt_format', 'exclude_types', 'inject_position', 'ctx_url', 'ctx_key', 'ctx_model', 'ctx_style', 'ctx_quality', 'ctx_negative', 'jb_llm', 'jb_image'];
+const TEXT_KEYS = ['base_url', 'api_key', 'model', 'negative', 'prompt_format', 'exclude_types', 'inject_position', 'ctx_source', 'ctx_url', 'ctx_key', 'ctx_model', 'ctx_style', 'ctx_quality', 'ctx_negative', 'jb_llm', 'jb_image', 'active_artist', 'sign_mode', 'exclusive_salt'];
 const NUM_KEYS = ['width', 'height', 'steps', 'scale', 'max_per_round', 'timeout_sec', 'interval_ms', 'inject_depth', 'ctx_timeout_sec'];
 const BOOL_KEYS = ['enabled', 'swipe_regenerate', 'strip_marker', 'inject_prompt', 'debug', 'ctx_enabled', 'parallel'];
 
 function fillForm(s) {
   SETTINGS = s;
+  // 画师串的选项必须先按列表重建，再轮到下面通用赋值给它赋 value ——
+  // 选项不存在时浏览器会把 select.value 清成空串，选中态就丢了。
+  renderArtistOptions(s.artist_presets, s.active_artist);
   for (const k of TEXT_KEYS) { const el = $('f-' + k); if (el) el.value = s[k] ?? ''; }
   for (const k of NUM_KEYS) { const el = $('f-' + k); if (el) el.value = s[k] ?? ''; }
   for (const k of BOOL_KEYS) { const el = $('sw-' + k); if (el) el.classList.toggle('on', !!s[k]); }
+  renderArtistRows(s.artist_presets);
+  syncCtxSourceUI();
 }
+
+// 选「跟随酒馆主 API」时地址 / Key / 模型名三项不生效，直接收起来，
+// 免得用户以为必须填完才能用。
+function syncCtxSourceUI() {
+  const sel = $('f-ctx_source');
+  const box = $('ctx-custom-fields');
+  if (box) box.style.display = (sel && sel.value === 'custom') ? '' : 'none';
+}
+
+/* ── 画师串 ──
+   面板只负责渲染与提交：内容校验、生效判断（只在送标签串时才拼）都在扩展侧的 lib/artist.js。
+   整个列表经 artist.save 一次性提交，不逐条增删 —— 避免出现「删了一半」的中间态，
+   也让它天然绕开 settings.patch（于是不会被「恢复默认值」清掉）。 */
+
+function artistPresets() {
+  return (SETTINGS && Array.isArray(SETTINGS.artist_presets)) ? SETTINGS.artist_presets : [];
+}
+
+function artistActiveId() {
+  return (SETTINGS && SETTINGS.active_artist) || '';
+}
+
+// 选项必须先生成再赋 value：选项不存在时浏览器会把 select.value 清成空串。
+function renderArtistOptions(presets, active) {
+  const sel = $('f-active_artist');
+  if (!sel) return;
+  const list = Array.isArray(presets) ? presets : [];
+  sel.innerHTML = '<option value="">不使用</option>' + list.map(a =>
+    '<option value="' + esc(a.id) + '">' + esc(a.name || '（未命名）') + '</option>').join('');
+  // 悬空 id（指向已删除的条目）在选项里不存在 → 落回空串、显示「不使用」，
+  // 与扩展侧的判定一致（见 lib/artist.js 的 artistPromptFor）。
+  sel.value = active || '';
+}
+
+function renderArtistRows(presets) {
+  const wrap = $('artist-list');
+  if (!wrap) return;
+  const list = Array.isArray(presets) ? presets : [];
+  if (!list.length) {
+    wrap.innerHTML = '<div class="empty">还没有画师串。点右上角「新增一条」开始建。</div>';
+    return;
+  }
+  wrap.innerHTML = list.map(a =>
+    '<div class="artist-item" data-id="' + esc(a.id) + '">' +
+      '<div class="artist-head">' +
+        '<input type="text" class="artist-name" value="' + esc(a.name) + '" placeholder="起个名字，例如：厚涂写实 / 赛璐璐">' +
+        '<button class="btn sm danger artist-del">删除</button>' +
+      '</div>' +
+      '<textarea class="artist-prompt" rows="3" placeholder="英文画师标签，英文逗号分隔，可带权重。例如：0.8::artist:yalmyu::, artist:sh_(shinh)">' + esc(a.prompt) + '</textarea>' +
+    '</div>').join('');
+}
+
+async function saveArtists(payload) {
+  const r = await call('artist.save', payload);
+  if (!r.ok) { toast('画师串保存失败：' + (r.error || '未知错误'), 'bad'); return false; }
+  const d = r.data || {};
+  SETTINGS.artist_presets = d.list || [];
+  // 只在本次确实提交了 active_artist 时才同步它，避免把别的字段的改动顺手清掉。
+  if (payload.active_artist !== undefined) SETTINGS.active_artist = d.active_artist || '';
+  renderArtistOptions(SETTINGS.artist_presets, SETTINGS.active_artist);
+  renderArtistRows(SETTINGS.artist_presets);
+  toast('画师串：已保存并生效');
+  return true;
+}
+
+// 这个 id 只用于面板与扩展之间的对齐；扩展侧只做「非空 + 不重复」校验，不解析它的含义。
+function newArtistId() {
+  return 'art_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// 事件委托：列表会整体重绘，逐行绑监听会随重绘一起丢。
+$('artist-list').addEventListener('change', async ev => {
+  if (!READY) return;
+  const item = ev.target.closest('.artist-item');
+  if (!item || !item.dataset.id) return;
+  const isName = ev.target.classList.contains('artist-name');
+  const isPrompt = ev.target.classList.contains('artist-prompt');
+  if (!isName && !isPrompt) return;
+  const list = artistPresets().map(a => ({ ...a }));
+  const hit = list.find(a => a.id === item.dataset.id);
+  if (!hit) return;
+  if (isName) hit.name = ev.target.value; else hit.prompt = ev.target.value;
+  await saveArtists({ list });
+});
+
+$('artist-list').addEventListener('click', async ev => {
+  const btn = ev.target.closest('.artist-del');
+  if (!btn || !READY) return;
+  const item = btn.closest('.artist-item');
+  const id = item && item.dataset.id;
+  if (!id) return;
+  const hit = artistPresets().find(a => a.id === id);
+  if (!window.confirm('删除画师串「' + ((hit && hit.name) || '未命名') + '」？')) return;
+  const list = artistPresets().filter(a => a.id !== id);
+  const payload = { list };
+  // 删的正好是当前在用的那条 → 同批置空，否则会留下一个指向已删条目的悬空 id。
+  if (artistActiveId() === id) payload.active_artist = '';
+  await saveArtists(payload);
+});
+
+$('btn-artist-add').onclick = async () => {
+  if (!READY) return;
+  const list = artistPresets().map(a => ({ ...a }));
+  if (list.length >= 30) { toast('画师串最多 30 条', 'bad'); return; }
+  list.push({ id: newArtistId(), name: '画师串 ' + (list.length + 1), prompt: '' });
+  await saveArtists({ list });
+};
 
 // 统一提交：单个字段变更即写入，返回 changed / notes
 async function commit(patch, label) {
@@ -871,7 +1106,8 @@ async function refreshOverview() {
   kvSet('ov-inject', s.inject_prompt
     ? '开 · ' + (s.inject_position === 'in_prompt' ? 'in_prompt' : `in_chat(depth ${s.inject_depth})`)
     : '关');
-  kvSet('ov-ctx', s.ctx_enabled ? '开 · ' + (s.ctx_model || '未填模型名') : '关');
+  kvSet('ov-ctx', s.ctx_enabled ? '开 · ' + (d.ctxActiveLabel || '-') : '关');
+  kvSet('ctx-active', d.ctxActiveLabel || '-');
   kvSet('ov-strip', s.strip_marker ? '开' : '关');
   kvSet('ov-swipe', s.swipe_regenerate ? '开' : '关');
   kvSet('ov-exclude', s.exclude_types || '（无）');

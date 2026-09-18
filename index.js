@@ -16,15 +16,18 @@ import { saveBase64AsFile } from '/scripts/utils.js';
 
 import {
     initSettings, settingsGet, applyPatch, isTypeExcluded, defaultSettings, recordHistory, clearHistory,
+    saveArtistPresets,
 } from './lib/settings.js';
 import { findMarkers, hasMarkers, stripMarkers, buildDisplayText, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream } from './lib/marker.js';
 import { generateIllustration, testConnection } from './lib/nai-api.js';
-import { applyMarkers } from './lib/analysis.js';
+import { applyMarkers, resolveCtxSource } from './lib/analysis.js';
+import { artistAppliesTo, artistPromptFor, withArtistPrompt } from './lib/artist.js';
 import { analyzeContext, testAnalyzeModel } from './lib/llm-api.js';
+import { analyzeViaMainApi, describeMainApi } from './lib/st-llm.js';
 import { showProgress, updateProgress, finishProgress, hideProgress, setCancelHandler } from './lib/progress.js';
 
 export const MODULE_NAME = 'v_canvas';
-const VERSION = '0.1.2';
+const VERSION = '0.1.3';
 
 // system prompt 注入用的键名（同一键重复写入会覆盖，不会累积）。
 const PROMPT_KEY = 'v_canvas_rule';
@@ -90,6 +93,63 @@ function log(...args) {
 
 function warn(...args) {
     console.warn('[V.Canvas]', ...args);
+}
+
+// ── 出图后端是否就绪 ──
+//
+// 地址为空时靠同页面的 V.Adapter 桥接出图；桥没挂上就等于没有后端。
+// 没有后端时整轮直接跳过：分析出来的提示词无处可画，白花一次模型调用还每轮刷屏报错。
+// 只提示一次，避免每轮回复都在控制台刷同一句。
+let warnedNoBackend = false;
+
+function hasImageBackend(cfg) {
+    if (cfg.base_url || isLocalUpstream(cfg.base_url)) {
+        warnedNoBackend = false;   // 后端接上了就把提示复位，下次断开还能再提一次
+        return true;
+    }
+    if (!warnedNoBackend) {
+        warnedNoBackend = true;
+        warn('尚未接入出图后端：地址为空、且未检测到同页面的 V.Adapter 桥接，本轮起跳过出图。'
+            + '装好 V.Adapter，或在「设置」页填写一个 NovelAI 协议服务地址，即可自动恢复。');
+    }
+    return false;
+}
+
+// ── 分析模型的来源 ──
+//
+// ctx_source = 'main'（默认）：直接用酒馆当前正在用的模型，用户什么都不用填。
+//                             实现见 lib/st-llm.js。
+// ctx_source = 'custom'：用用户自填的 OpenAI 兼容服务。实现见 lib/llm-api.js。
+//
+// 选择规则集中在这里，两条路径的入参保持一致，换来源不影响其他任何环节。
+
+/** ctxAnalyzer 挑出本次要用的来源；'custom' 但配置不全时返回 null。判定逻辑在 analysis.js，可离线单测。 */
+function ctxAnalyzer(cfg) {
+    return resolveCtxSource(cfg.ctx_source, { url: cfg.ctx_url, model: cfg.ctx_model });
+}
+
+/** analyzerLabel 面板与日志里显示的「这次用的是哪个模型」。 */
+function analyzerLabel(cfg, kind) {
+    if (kind === 'main') return describeMainApi().label;
+    return cfg.ctx_model ? `自定义模型 · ${cfg.ctx_model}` : '自定义模型';
+}
+
+/** runCtxAnalyzer 按选定来源发起分析。 */
+async function runCtxAnalyzer(kind, cfg, opts) {
+    const shared = {
+        reply: opts.reply,
+        context: opts.context,
+        work: opts.work,
+        style: cfg.ctx_style,
+        quality: cfg.ctx_quality,
+        negative: cfg.ctx_negative,
+        jb: cfg.jb_llm,
+        max: opts.max,
+        timeoutMs: cfg.ctx_timeout_sec * 1000,
+        signal: opts.signal,
+    };
+    if (kind === 'main') return analyzeViaMainApi(shared);
+    return analyzeContext({ ...shared, baseUrl: cfg.ctx_url, apiKey: cfg.ctx_key, model: cfg.ctx_model });
 }
 
 // ── 初始化 ──
@@ -163,6 +223,8 @@ async function onMessageReceived(messageId, type) {
     const msg = ctx.chat?.[messageId];
     if (!msg || msg.is_user || msg.is_system) return;
 
+    if (!hasImageBackend(s())) return;
+
     // 两条路线并存，互不重复：
     //   ① 标记驱动 —— 正文里已含 [ILLUST: …] 时由 processMessage 处理（零额外等待）
     //   ② 上下文驱动 —— 正文没有标记、且启用了上下文出图时，交由独立模型阅读正文后补位
@@ -213,9 +275,11 @@ async function processContextIllustration(messageId, msg) {
     const mes = String(msg.mes ?? '');
     if (hasMarkers(mes)) return;                      // 正文自带标记，走标记路线
     if (!mes.trim()) return;
-    if (!cfg.ctx_url || !cfg.ctx_model) {
-        warn('已启用上下文出图，但未配置分析模型的地址或模型名，本次跳过');
-        finishProgress('已启用上下文出图，但未配置分析模型的地址或模型名', true);
+
+    const kind = ctxAnalyzer(cfg);
+    if (!kind) {
+        warn('已启用上下文出图，但选择的是自定义分析模型，地址或模型名未填，本次跳过');
+        finishProgress('已选择自定义分析模型，但地址或模型名未填 —— 想省事就切回「跟随酒馆主 API」', true);
         return;
     }
 
@@ -228,20 +292,12 @@ async function processContextIllustration(messageId, msg) {
     const signal = beginRun();
     showProgress(`正在分析正文…（约 10~30 秒，最多 ${maxImages} 张）`);
     try {
-        log(`${tag} 送分析模型（${cfg.ctx_model}），正文 ${[...mes].length} 字`);
-        const items = await analyzeContext({
-            baseUrl: cfg.ctx_url,
-            apiKey: cfg.ctx_key,
-            model: cfg.ctx_model,
+        log(`${tag} 送分析模型（${analyzerLabel(cfg, kind)}），正文 ${[...mes].length} 字`);
+        const items = await runCtxAnalyzer(kind, cfg, {
             reply: mes,
             context: collectContext(ctx.chat, messageId),
             work: workLabel(ctx),
-            style: cfg.ctx_style,
-            quality: cfg.ctx_quality,
-            negative: cfg.ctx_negative,
-            jb: cfg.jb_llm,
             max: maxImages,
-            timeoutMs: cfg.ctx_timeout_sec * 1000,
             signal,
         });
         if (isAborted(signal)) { finishProgress('已终止', false); return; }
@@ -310,6 +366,7 @@ async function onSwipeSettled(messageId) {
         return;
     }
     if (!hasMarkers(String(msg.mes ?? ''))) return;
+    if (!hasImageBackend(s())) return;
     await processMessage(Number(messageId), 'swipe', msg);
 }
 
@@ -470,6 +527,13 @@ async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMo
     let done = 0;
     const errors = [];
 
+    // 画师串取一次，整批复用。是否真的拼上去由 promptMode 决定：
+    // 送自然语言描述（经 V.Adapter）时 withArtistPrompt 原样返回，不会污染描述。
+    const artistStr = artistPromptFor(cfg.artist_presets, cfg.active_artist);
+    if (artistStr && !artistAppliesTo(promptMode)) {
+        log(`画师串已选（名「${cfg.active_artist}」）但当前形态为 ${promptMode}，本次不拼`);
+    }
+
     updateProgress(cfg.parallel
         ? `正在绘制 ${total} 张插画 … 约 30~60 秒`
         : (total > 1
@@ -485,7 +549,9 @@ async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMo
                 baseUrl: cfg.base_url,
                 apiKey: cfg.api_key,
                 model: cfg.model,
-                prompt: buildUpstreamPrompt(selectPrompt(m, promptMode), cfg.jb_image),
+                // 顺序：破限词 → 画师串 → 画面 tag。破限词要在最前（它是给上游看的提示前缀），
+                // 画师串紧跟其后（画风基调要先于画面内容定下，NAI 对靠前 tag 权重更高）。
+                prompt: buildUpstreamPrompt(withArtistPrompt(selectPrompt(m, promptMode), artistStr, promptMode), cfg.jb_image),
                 negative: cfg.negative,
                 width: cfg.width,
                 height: cfg.height,
@@ -1007,6 +1073,12 @@ function installBridge() {
             switch (action) {
                 case 'state': {
                     const c = s();
+                    // 当前实际会用哪个模型做分析：为 null 说明选了自定义但没配全，明确写出来，
+                    // 免得用户看到「已开启」却不知道什么都没发生。
+                    const kind = ctxAnalyzer(c);
+                    const ctxActiveLabel = kind
+                        ? analyzerLabel(c, kind)
+                        : '自定义模型（地址或模型名未填，不会发起请求）';
                     return {
                         ok: true,
                         data: {
@@ -1014,6 +1086,7 @@ function installBridge() {
                             version: VERSION,
                             upstreamKind: upstreamKind(c.base_url, c.model),
                             apiKeyMasked: maskKey(c.api_key) || '（未设置）',
+                            ctxActiveLabel,
                             settings: { ...c },
                             images: collectImages(),
                             chatMessages: getContext().chat?.length ?? 0,
@@ -1051,6 +1124,14 @@ function installBridge() {
                 case 'history.clear': {
                     clearHistory();
                     return { ok: true, data: { count: 0 } };
+                }
+
+                // 画师串库：用户创作的数据，走独立动作而不经 settings.patch ——
+                // 这样它既不会被「恢复默认值」清空，也不会被无关的设置提交覆盖。
+                // 传入 active_artist 时一并落盘（删掉正在用的那条必须同时置空）。
+                case 'artist.save': {
+                    const r = saveArtistPresets(payload?.list, { activeArtist: payload?.active_artist });
+                    return { ok: true, data: { list: r.list, active_artist: r.activeArtist } };
                 }
 
                 case 'test': {
@@ -1103,6 +1184,11 @@ function installBridge() {
                 // 上下文出图：试连分析模型
                 case 'ctx.test': {
                     const c = s();
+                    // 跟随酒馆主 API 时不存在「连不上」的情况 —— 主 API 能正常聊天即代表可用，
+                    // 没必要为此多花一次调用。直接回报当前生效的模型即可。
+                    if (c.ctx_source !== 'custom') {
+                        return { ok: true, data: { message: `无需测试：当前跟随 ${describeMainApi().label}` } };
+                    }
                     const message = await testAnalyzeModel({
                         baseUrl: c.ctx_url, apiKey: c.ctx_key, model: c.ctx_model,
                     });
@@ -1112,8 +1198,9 @@ function installBridge() {
                 // 上下文出图：立即分析最后一条角色回复并出图（用于验证链路，不必等下一轮对话）
                 case 'ctx.generate': {
                     const c = s();
-                    if (!c.ctx_url || !c.ctx_model) {
-                        return { ok: false, error: '请先填写分析模型的 API 地址与模型名' };
+                    const kind = ctxAnalyzer(c);
+                    if (!kind) {
+                        return { ok: false, error: '已选择自定义分析模型，请先填写 API 地址与模型名；想省事就切回「跟随酒馆主 API」' };
                     }
                     if (!c.base_url && !isLocalUpstream(c.base_url)) {
                         return { ok: false, error: '未配置 NAI 服务地址：装了 V.Adapter 会自动直连；否则请填写一个 NovelAI 协议服务地址' };
@@ -1133,19 +1220,11 @@ function installBridge() {
                     showProgress(`正在分析正文…（约 10~30 秒，最多 ${maxImages} 张）`);
                     let items;
                     try {
-                        items = await analyzeContext({
-                            baseUrl: c.ctx_url,
-                            apiKey: c.ctx_key,
-                            model: c.ctx_model,
+                        items = await runCtxAnalyzer(kind, c, {
                             reply: stripMarkers(String(msg.mes ?? '')),
                             context: collectContext(chat, id),
                             work: workLabel(ctx),
-                            style: c.ctx_style,
-                            quality: c.ctx_quality,
-                            negative: c.ctx_negative,
-                            jb: c.jb_llm,
                             max: maxImages,
-                            timeoutMs: c.ctx_timeout_sec * 1000,
                             signal,
                         });
                     } catch (err) {

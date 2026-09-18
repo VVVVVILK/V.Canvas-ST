@@ -1,3 +1,9 @@
 node_modules/
 *.zip
+!test/image_0.zip
 *.log
+
+# 内部文档与测试产物：只在本地保留，不进仓库
+开发交接文档.md
+test/contract.txt
+test/report.txt
