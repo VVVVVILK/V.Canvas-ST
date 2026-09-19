@@ -509,6 +509,11 @@ input[type=number]{-moz-appearance:textfield}
               <b>正文直出的三条限制</b><br>
               ① <b>只在上游读得懂自然语言时才成立</b>：聊天画图模型 / OpenAI 兼容生图可以；
               直连官方 NAI 不行 —— 送出形态为「标签串」时本模式会自动跳过，不报错也不出图。<br>
+              <b>被判成「标签串」通常不是因为你直连了官方 NAI</b>：判定靠的是出图地址 ——
+              127.0.0.1 / localhost / 带 :8888 / 同页面装了适配服务扩展，才算「吃自然语言」；
+              <b>远程部署的适配服务（域名或远程 IP）会被误判成标签上游</b>。
+              那种情况不用切回分析模式，在「设置」页把「上游类型」选成
+              <span class="mono">适配服务</span> 即可。<br>
               ② <b>一条回复固定一张图</b>：不经分析就没有分镜，同一个正文让模型画 N 遍只会得到 N 张几乎一样的图，
               因此「每轮上限」在本模式下不生效。<br>
               ③ <b>图固定挂在回复末尾</b>：不经分析就没有插入位置，正文末尾是唯一没有歧义的地方。
@@ -664,6 +669,28 @@ input[type=number]{-moz-appearance:textfield}
               <span class="lab">NAI 服务地址</span>
               <input type="text" id="f-base_url" placeholder="留空 = 自动使用同页面的 V.Adapter">
               <span class="hint">已安装 V.Adapter 时<strong>留空即可</strong>，两个扩展会自动接上，无需端口；只有对接官方 NAI / 第三方 NAI 网关时才需要填。填写后若连不上，会自动改走同页面的 V.Adapter。</span>
+            </label>
+            <label class="field">
+              <span class="lab">上游类型</span>
+              <select id="f-upstream_type">
+                <option value="auto">自动判断（按地址猜）</option>
+                <option value="adapter">适配服务 · 吃自然语言（V.Adapter / 聊天画图模型 / OpenAI 兼容生图）</option>
+                <option value="nai">官方 NovelAI · 吃标签串（含 NAI 网关 / 第三方中转）</option>
+              </select>
+              <span class="hint">
+                决定送出去的是<b>自然语言描述</b>还是<b>Danbooru 标签串</b>。
+                地址只能区分「本机」与「远端」，<b>区分不了「远端部署的适配服务」与「第三方 NAI 网关」</b> ——
+                两者都是远程域名，长得一模一样。
+              </span>
+              <span class="hint">
+                <b>适配服务部署在服务器上的，必须手动选「适配服务」这一档</b>：
+                否则会被按地址误判成 NAI，表现为正文直出不出图、只弹一句「送出形态是标签串」。
+                装在酒馆同一台机器上（<span class="mono">127.0.0.1</span> / <span class="mono">localhost</span> /
+                地址带 <span class="mono">:8888</span>）的可以留「自动判断」。
+              </span>
+              <span class="hint">
+                只有在上面「提示词形态」为 <span class="mono">auto</span> 时才起作用；形态被手动指定时以形态为准。
+              </span>
             </label>
             <label class="field">
               <span class="lab">API Key</span>
@@ -976,7 +1003,7 @@ function toggleSidebar(open) {
 $('btn-menu').onclick = () => toggleSidebar(true);
 
 /* ── 设置界面 ── */
-const TEXT_KEYS = ['base_url', 'api_key', 'model', 'negative', 'prompt_format', 'exclude_types', 'inject_position', 'ctx_mode', 'ctx_direct_guide', 'ctx_source', 'ctx_url', 'ctx_key', 'ctx_model', 'ctx_style', 'ctx_quality', 'ctx_negative', 'jb_llm', 'jb_image', 'active_artist', 'sign_mode', 'exclusive_salt'];
+const TEXT_KEYS = ['base_url', 'api_key', 'upstream_type', 'model', 'negative', 'prompt_format', 'exclude_types', 'inject_position', 'ctx_mode', 'ctx_direct_guide', 'ctx_source', 'ctx_url', 'ctx_key', 'ctx_model', 'ctx_style', 'ctx_quality', 'ctx_negative', 'jb_llm', 'jb_image', 'active_artist', 'sign_mode', 'exclusive_salt'];
 const NUM_KEYS = ['width', 'height', 'steps', 'scale', 'max_per_round', 'timeout_sec', 'interval_ms', 'inject_depth', 'ctx_timeout_sec'];
 const BOOL_KEYS = ['enabled', 'swipe_regenerate', 'strip_marker', 'inject_prompt', 'debug', 'ctx_enabled', 'parallel'];
 

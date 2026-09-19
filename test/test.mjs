@@ -163,6 +163,24 @@ report.push('', '== prompt format (prompt_format) ==');
     ok('unknown value falls back to auto behaviour', resolvePromptMode('nope', 'http://127.0.0.1:8888') === 'description');
     ok('isLocalUpstream detects adapter port', isLocalUpstream('http://127.0.0.1:8888') && !isLocalUpstream('https://image.novelai.net'));
 
+    // ── 上游类型显式声明（upstream_type）──
+    // 地址区分不了「远端部署的适配服务」与「第三方 NAI 网关」—— 两者都是远程域名。
+    // 部署在 VPS 上的适配服务会被误判成标签上游，只能由使用者声明。
+    const REMOTE_ADAPTER = 'https://novelai-ln.example.cfd';
+    ok('auto + remote adapter -> tags (the misjudgement this fixes)',
+        resolvePromptMode('auto', REMOTE_ADAPTER) === 'tags');
+    ok('declared adapter wins over a remote address',
+        resolvePromptMode('auto', REMOTE_ADAPTER, 'adapter') === 'description');
+    ok('declared nai wins over a local address',
+        resolvePromptMode('auto', 'http://127.0.0.1:8888', 'nai') === 'tags');
+    ok('declared adapter does not override an explicit format',
+        resolvePromptMode('tags', REMOTE_ADAPTER, 'adapter') === 'tags');
+    ok('declared nai does not override an explicit format',
+        resolvePromptMode('description', 'https://image.novelai.net', 'nai') === 'description');
+    ok('unknown upstream type falls back to address guessing',
+        resolvePromptMode('auto', 'http://127.0.0.1:8888', 'whatever') === 'description'
+        && resolvePromptMode('auto', REMOTE_ADAPTER, 'whatever') === 'tags');
+
     const full = { desc: 'a knight in old chainmail', tags: '1boy, chainmail, sword' };
     ok('selectPrompt description', selectPrompt(full, 'description') === 'a knight in old chainmail');
     ok('selectPrompt tags', selectPrompt(full, 'tags') === '1boy, chainmail, sword');

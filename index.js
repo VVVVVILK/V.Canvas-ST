@@ -342,11 +342,25 @@ async function runAnalyzePass(ctx, messageId, msg, cfg, signal, tag) {
 // 这是「真正的文生图」：链条上少一次文字模型改写，正文本身就是提示词。
 // 送的只有刚生成的这一条 AI 正文，不含任何历史上下文 ——
 // 酒馆里是人与 AI 的来回对话，把整段对话塞进去既费 token，又会让模型分不清该画哪一幕。
+// directBlockedReason 直出被形态闸门拦下时，给人看的解释。
+//
+// 必须把「为什么会判成标签串」讲清楚：撞上这道闸的用户大多**不是**直连官方 NAI，
+// 而是地址填了远程部署的适配服务 —— auto 档只能靠地址猜，远程一律按标签算，
+// 于是被误拦。那种情况的解法是改「提示词形态」，而不是这里原先写的那句「切回分析模式」。
+function directBlockedReason(cfg) {
+    if (cfg.prompt_format === 'tags') return '「提示词形态」手动选了 tags';
+    if (cfg.upstream_type === 'nai') return '「上游类型」手动选了 nai';
+    return '「提示词形态」与「上游类型」都是 auto，而出图地址不是本机'
+        + '（auto 档只能靠地址猜：127.0.0.1 / localhost / 带 :8888 算适配服务，其余一律按 NAI 算）';
+}
+
 async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
-    const gate = resolvePromptMode(cfg.prompt_format, cfg.base_url);
+    const gate = resolvePromptMode(cfg.prompt_format, cfg.base_url, cfg.upstream_type);
     if (!directAppliesTo(gate)) {
-        const why = '正文直出送的是自然语言正文，而当前送出形态是「标签串」（直连官方 NAI / NAI 网关）'
-            + ' —— 那类上游按标签训练，喂散文等于喂噪料。请在「上下文出图」页切回「分析模型」模式';
+        const why = '正文直出送的是自然语言正文，当前却被判成「标签串」（' + directBlockedReason(cfg) + '）。'
+            + '如果你的地址其实指向适配服务（吃自然语言），把「设置」页的「上游类型」选成 adapter'
+            + '（或把「提示词形态」改成 description）即可；'
+            + '确实是直连官方 NAI 才需要切回「分析模型」模式';
         warn(`${tag} ${why}`);
         finishProgress(why, true);
         return;
@@ -392,7 +406,9 @@ async function runIllustration(ctx, messageId, msg, items, signal, opt = {}) {
 
     // 直出的载荷是自然语言正文，与 prompt_format 无关：固定走 description 档，
     // 这样画师串（英文画师名）会按既有规则自动让位，不会混进散文里。
-    const promptMode = opt.direct ? 'description' : resolvePromptMode(cfg.prompt_format, cfg.base_url);
+    const promptMode = opt.direct
+        ? 'description'
+        : resolvePromptMode(cfg.prompt_format, cfg.base_url, cfg.upstream_type);
     const { ok, errors } = await drawMarkers(ctx, messageId, msg, st, markers, cfg, signal, promptMode);
 
     if (isAborted(signal)) {
@@ -459,8 +475,8 @@ async function processMessage(messageId, type, msg) {
         return;
     }
 
-    // 送出内容按链路分流：本地适配服务走自然语言描述，其余走 Danbooru 标签。
-    const promptMode = resolvePromptMode(cfg.prompt_format, cfg.base_url);
+    // 送出内容按链路分流：适配服务走自然语言描述，官方 NAI / 网关走 Danbooru 标签。
+    const promptMode = resolvePromptMode(cfg.prompt_format, cfg.base_url, cfg.upstream_type);
     log(`${tag} prompt_format=${cfg.prompt_format} → 送出 ${promptMode}`);
 
     const ctx = getContext();
@@ -1278,10 +1294,13 @@ function installBridge() {
                         let items;
                         let direct = false;
                         if (c.ctx_mode === 'direct') {
-                            const gate = resolvePromptMode(c.prompt_format, c.base_url);
+                            const gate = resolvePromptMode(c.prompt_format, c.base_url, c.upstream_type);
                             if (!directAppliesTo(gate)) {
-                                finishProgress('正文直出要求送出形态为自然语言描述；当前是「标签串」，已跳过', true);
-                                return { ok: false, error: '正文直出要求上游读得懂自然语言：当前送出形态是标签串（直连官方 NAI / NAI 网关），请切回「分析模型」模式' };
+                                const why = '当前送出形态被判成「标签串」（' + directBlockedReason(c) + '）'
+                                    + ' —— 地址若指向适配服务，把「设置」页的「上游类型」选成 adapter'
+                                    + '（或把「提示词形态」改成 description）即可';
+                                finishProgress('正文直出已跳过：' + why, true);
+                                return { ok: false, error: why };
                             }
                             direct = true;
                             items = [{
