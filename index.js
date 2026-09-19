@@ -20,7 +20,9 @@ import {
 } from './lib/settings.js';
 import { findMarkers, hasMarkers, stripMarkers, buildDisplayText, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream } from './lib/marker.js';
 import { generateIllustration, testConnection } from './lib/nai-api.js';
-import { applyMarkers, resolveCtxSource } from './lib/analysis.js';
+import {
+    applyMarkers, resolveCtxSource, applyProseMarker, buildDirectProse, directAppliesTo,
+} from './lib/analysis.js';
 import { artistAppliesTo, artistPromptFor, withArtistPrompt } from './lib/artist.js';
 import { analyzeContext, testAnalyzeModel } from './lib/llm-api.js';
 import { analyzeViaMainApi, describeMainApi } from './lib/st-llm.js';
@@ -126,6 +128,11 @@ function hasImageBackend(cfg) {
 /** ctxAnalyzer 挑出本次要用的来源；'custom' 但配置不全时返回 null。判定逻辑在 analysis.js，可离线单测。 */
 function ctxAnalyzer(cfg) {
     return resolveCtxSource(cfg.ctx_source, { url: cfg.ctx_url, model: cfg.ctx_model });
+}
+
+/** ctxModeLabel 日志与提示里显示的「这次走哪条补图路线」。 */
+function ctxModeLabel(mode) {
+    return mode === 'direct' ? '正文直出' : '上下文出图';
 }
 
 /** analyzerLabel 面板与日志里显示的「这次用的是哪个模型」。 */
@@ -276,6 +283,30 @@ async function processContextIllustration(messageId, msg) {
     if (hasMarkers(mes)) return;                      // 正文自带标记，走标记路线
     if (!mes.trim()) return;
 
+    const tag = `#${messageId}(${ctxModeLabel(cfg.ctx_mode)})`;
+    ctxInFlight.add(messageId);
+    const ctx = getContext();
+    const signal = beginRun();
+    try {
+        if (cfg.ctx_mode === 'direct') {
+            await runDirectPass(ctx, messageId, msg, cfg, signal, tag);
+        } else {
+            await runAnalyzePass(ctx, messageId, msg, cfg, signal, tag);
+        }
+    } catch (err) {
+        if (isAborted(signal)) { finishProgress('已终止', false); return; }
+        const m = truncateText(err?.message ?? String(err), 300);
+        warn(`${tag} 失败：`, m);
+        finishProgress(`${ctxModeLabel(cfg.ctx_mode)}失败：${m}`, true);
+        toastr.error(`${ctxModeLabel(cfg.ctx_mode)}失败：${m}`, 'V.Canvas', { timeOut: 12000 });
+    } finally {
+        ctxInFlight.delete(messageId);
+        endRun();
+    }
+}
+
+// runAnalyzePass 路线 A：分析模型读正文 → 写出图提示词 → 送上游（文 → 文 → 图）。
+async function runAnalyzePass(ctx, messageId, msg, cfg, signal, tag) {
     const kind = ctxAnalyzer(cfg);
     if (!kind) {
         warn('已启用上下文出图，但选择的是自定义分析模型，地址或模型名未填，本次跳过');
@@ -283,48 +314,71 @@ async function processContextIllustration(messageId, msg) {
         return;
     }
 
-    const tag = `#${messageId}(上下文)`;
-    ctxInFlight.add(messageId);
-    const ctx = getContext();
+    const mes = String(msg.mes ?? '');
     // 张数统一走「每轮上限」（与标记驱动路线同一个设置项），
     // 避免两套上限各说各话：在设置页改了却在上下文出图上不生效。
     const maxImages = Math.min(6, Math.max(1, cfg.max_per_round | 0));
-    const signal = beginRun();
     showProgress(`正在分析正文…（约 10~30 秒，最多 ${maxImages} 张）`);
-    try {
-        log(`${tag} 送分析模型（${analyzerLabel(cfg, kind)}），正文 ${[...mes].length} 字`);
-        const items = await runCtxAnalyzer(kind, cfg, {
-            reply: mes,
-            context: collectContext(ctx.chat, messageId),
-            work: workLabel(ctx),
-            max: maxImages,
-            signal,
-        });
-        if (isAborted(signal)) { finishProgress('已终止', false); return; }
-        if (!items.length) {
-            log(`${tag} 分析模型认为本文没有值得配图的画面`);
-            finishProgress('分析结果为空：这条回复没有找到值得配图的画面', false);
-            return;
-        }
-        log(`${tag} 分析得到 ${items.length} 个画面`);
-        await runIllustration(ctx, messageId, msg, items, signal);
-    } catch (err) {
-        if (isAborted(signal)) { finishProgress('已终止', false); return; }
-        const m = truncateText(err?.message ?? String(err), 300);
-        warn(`${tag} 失败：`, m);
-        finishProgress(`上下文出图失败：${m}`, true);
-        toastr.error(`上下文出图失败：${m}`, 'V.Canvas', { timeOut: 12000 });
-    } finally {
-        ctxInFlight.delete(messageId);
-        endRun();
+    log(`${tag} 送分析模型（${analyzerLabel(cfg, kind)}），正文 ${[...mes].length} 字`);
+    const items = await runCtxAnalyzer(kind, cfg, {
+        reply: mes,
+        context: collectContext(ctx.chat, messageId),
+        work: workLabel(ctx),
+        max: maxImages,
+        signal,
+    });
+    if (isAborted(signal)) { finishProgress('已终止', false); return; }
+    if (!items.length) {
+        log(`${tag} 分析模型认为本文没有值得配图的画面`);
+        finishProgress('分析结果为空：这条回复没有找到值得配图的画面', false);
+        return;
     }
+    log(`${tag} 分析得到 ${items.length} 个画面`);
+    await runIllustration(ctx, messageId, msg, items, signal);
+}
+
+// runDirectPass 路线 B：正文直出 —— 不调用分析模型，把整条 AI 正文原样交给生图模型。
+//
+// 这是「真正的文生图」：链条上少一次文字模型改写，正文本身就是提示词。
+// 送的只有刚生成的这一条 AI 正文，不含任何历史上下文 ——
+// 酒馆里是人与 AI 的来回对话，把整段对话塞进去既费 token，又会让模型分不清该画哪一幕。
+async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
+    const gate = resolvePromptMode(cfg.prompt_format, cfg.base_url);
+    if (!directAppliesTo(gate)) {
+        const why = '正文直出送的是自然语言正文，而当前送出形态是「标签串」（直连官方 NAI / NAI 网关）'
+            + ' —— 那类上游按标签训练，喂散文等于喂噪料。请在「上下文出图」页切回「分析模型」模式';
+        warn(`${tag} ${why}`);
+        finishProgress(why, true);
+        return;
+    }
+
+    // 作品信息（角色卡名等）不是对话上下文，不影响「只发最新一条正文」这条约束，
+    // 但它是画风一致性的主要依据 —— 少了它，同一段剧情每次画出来可能不是一个调。
+    const prose = buildDirectProse(stripMarkers(String(msg.mes ?? '')), {
+        guide: cfg.ctx_direct_guide,
+        work: workLabel(ctx),
+        style: cfg.ctx_style,
+        quality: cfg.ctx_quality,
+        negative: cfg.ctx_negative,
+    });
+    if (!prose.trim()) { finishProgress('正文为空，跳过', false); return; }
+
+    log(`${tag} 正文 ${[...prose].length} 字直送生图上游（不经分析模型）`);
+    showProgress('正在绘制插画 … 约 30~60 秒');
+    // 直出固定一张：同一个正文让模型画 N 遍只会得到 N 张几乎一样的图，
+    // 而分析模型那档是因为做了分镜才可能出多张。
+    await runIllustration(ctx, messageId, msg, [{ desc: prose }], signal, { direct: true });
 }
 
 // runIllustration 把画面列表转成标记后，复用既有的出图与就地替换链路。
-async function runIllustration(ctx, messageId, msg, items, signal) {
+async function runIllustration(ctx, messageId, msg, items, signal, opt = {}) {
     const cfg = s();
     const reply = String(msg.mes ?? '');
-    const src = applyMarkers(reply, items);
+    // 直出不经过 anchor（没人决定插在哪一段下面），标记追加在整条回复末尾；
+    // 其余路线由 applyMarkers 按 anchor 就地插入。
+    const src = opt.direct
+        ? applyProseMarker(reply, items[0]?.desc ?? '')
+        : applyMarkers(reply, items);
     const markers = findMarkers(src);
     if (!markers.length) {
         log(`#${messageId} 标记组装后为空，跳过`);
@@ -336,7 +390,9 @@ async function runIllustration(ctx, messageId, msg, items, signal) {
     const st = { src, urls: new Array(markers.length).fill(null) };
     msg.extra.illust = st;
 
-    const promptMode = resolvePromptMode(cfg.prompt_format, cfg.base_url);
+    // 直出的载荷是自然语言正文，与 prompt_format 无关：固定走 description 档，
+    // 这样画师串（英文画师名）会按既有规则自动让位，不会混进散文里。
+    const promptMode = opt.direct ? 'description' : resolvePromptMode(cfg.prompt_format, cfg.base_url);
     const { ok, errors } = await drawMarkers(ctx, messageId, msg, st, markers, cfg, signal, promptMode);
 
     if (isAborted(signal)) {
@@ -1076,9 +1132,11 @@ function installBridge() {
                     // 当前实际会用哪个模型做分析：为 null 说明选了自定义但没配全，明确写出来，
                     // 免得用户看到「已开启」却不知道什么都没发生。
                     const kind = ctxAnalyzer(c);
-                    const ctxActiveLabel = kind
-                        ? analyzerLabel(c, kind)
-                        : '自定义模型（地址或模型名未填，不会发起请求）';
+                    // 正文直出时不显示分析模型名：那玩意儿本轮压根不会被调用，
+                    // 显示出来会让人以为还得配它。
+                    const ctxActiveLabel = c.ctx_mode === 'direct'
+                        ? '正文直出（不经分析模型）'
+                        : (kind ? analyzerLabel(c, kind) : '自定义模型（地址或模型名未填，不会发起请求）');
                     return {
                         ok: true,
                         data: {
@@ -1184,6 +1242,10 @@ function installBridge() {
                 // 上下文出图：试连分析模型
                 case 'ctx.test': {
                     const c = s();
+                    // 正文直出不经分析模型，没有可连、可测的对象。
+                    if (c.ctx_mode === 'direct') {
+                        return { ok: true, data: { message: '正文直出模式不使用分析模型 —— 正文会原样送给出图上游，不需要测试' } };
+                    }
                     // 跟随酒馆主 API 时不存在「连不上」的情况 —— 主 API 能正常聊天即代表可用，
                     // 没必要为此多花一次调用。直接回报当前生效的模型即可。
                     if (c.ctx_source !== 'custom') {
@@ -1195,13 +1257,9 @@ function installBridge() {
                     return { ok: true, data: { message } };
                 }
 
-                // 上下文出图：立即分析最后一条角色回复并出图（用于验证链路，不必等下一轮对话）
+                // 上下文出图 / 正文直出：立即对最后一条角色回复执行一次（用于验证链路，不必等下一轮对话）
                 case 'ctx.generate': {
                     const c = s();
-                    const kind = ctxAnalyzer(c);
-                    if (!kind) {
-                        return { ok: false, error: '已选择自定义分析模型，请先填写 API 地址与模型名；想省事就切回「跟随酒馆主 API」' };
-                    }
                     if (!c.base_url && !isLocalUpstream(c.base_url)) {
                         return { ok: false, error: '未配置 NAI 服务地址：装了 V.Adapter 会自动直连；否则请填写一个 NovelAI 协议服务地址' };
                     }
@@ -1215,40 +1273,63 @@ function installBridge() {
                     if (id < 0) return { ok: false, error: '当前聊天里没有可配图的角色回复' };
 
                     const msg = chat[id];
-                    const maxImages = Math.min(6, Math.max(1, c.max_per_round | 0));
                     const signal = beginRun();
-                    showProgress(`正在分析正文…（约 10~30 秒，最多 ${maxImages} 张）`);
-                    let items;
                     try {
-                        items = await runCtxAnalyzer(kind, c, {
-                            reply: stripMarkers(String(msg.mes ?? '')),
-                            context: collectContext(chat, id),
-                            work: workLabel(ctx),
-                            max: maxImages,
-                            signal,
-                        });
-                    } catch (err) {
-                        endRun();
-                        const em = truncateText(err?.message ?? String(err), 300);
-                        finishProgress(`分析失败：${em}`, true);
-                        return { ok: false, error: em };
-                    }
-                    if (!items.length) {
-                        endRun();
-                        finishProgress('分析结果为空：这条回复没有找到值得配图的画面', false);
-                        return { ok: false, error: '分析模型认为这条回复没有值得配图的画面' };
-                    }
+                        let items;
+                        let direct = false;
+                        if (c.ctx_mode === 'direct') {
+                            const gate = resolvePromptMode(c.prompt_format, c.base_url);
+                            if (!directAppliesTo(gate)) {
+                                finishProgress('正文直出要求送出形态为自然语言描述；当前是「标签串」，已跳过', true);
+                                return { ok: false, error: '正文直出要求上游读得懂自然语言：当前送出形态是标签串（直连官方 NAI / NAI 网关），请切回「分析模型」模式' };
+                            }
+                            direct = true;
+                            items = [{
+                                desc: buildDirectProse(stripMarkers(String(msg.mes ?? '')), {
+                                    guide: c.ctx_direct_guide,
+                                    work: workLabel(ctx),
+                                    style: c.ctx_style,
+                                    quality: c.ctx_quality,
+                                    negative: c.ctx_negative,
+                                }),
+                            }];
+                            showProgress('正在绘制插画 … 约 30~60 秒');
+                        } else {
+                            const kind = ctxAnalyzer(c);
+                            if (!kind) {
+                                return { ok: false, error: '已选择自定义分析模型，请先填写 API 地址与模型名；想省事就切回「跟随酒馆主 API」' };
+                            }
+                            const maxImages = Math.min(6, Math.max(1, c.max_per_round | 0));
+                            showProgress(`正在分析正文…（约 10~30 秒，最多 ${maxImages} 张）`);
+                            items = await runCtxAnalyzer(kind, c, {
+                                reply: stripMarkers(String(msg.mes ?? '')),
+                                context: collectContext(chat, id),
+                                work: workLabel(ctx),
+                                max: maxImages,
+                                signal,
+                            });
+                            if (!items.length) {
+                                finishProgress('分析结果为空：这条回复没有找到值得配图的画面', false);
+                                return { ok: false, error: '分析模型认为这条回复没有值得配图的画面' };
+                            }
+                        }
 
-                    // 重新分析时先清掉上一条的插图状态，避免与旧图叠加
-                    if (msg.extra?.illust) { delete msg.extra.illust; delete msg.extra.illust_done; }
-                    try {
-                        await runIllustration(ctx, id, msg, items, signal);
+                        // 重新执行时先清掉上一条的插图状态，避免与旧图叠加
+                        if (msg.extra?.illust) { delete msg.extra.illust; delete msg.extra.illust_done; }
+                        await runIllustration(ctx, id, msg, items, signal, { direct });
+
+                        const urls = (msg.extra?.illust?.urls ?? []).filter(Boolean);
+                        if (!urls.length) {
+                            return { ok: false, error: '图片没有生成成功（详见生成记录与浏览器控制台）' };
+                        }
+                        return { ok: true, data: { messageId: id, count: urls.length, prompts: items.map(it => it.desc || it.tags) } };
+                    } catch (err) {
+                        const em = truncateText(err?.message ?? String(err), 300);
+                        finishProgress(`失败：${em}`, true);
+                        return { ok: false, error: em };
                     } finally {
                         endRun();
                     }
-                    const urls = (msg.extra?.illust?.urls ?? []).filter(Boolean);
-                    if (!urls.length) return { ok: false, error: '分析完成，但图片没有生成成功（详见生成记录与浏览器控制台）' };
-                    return { ok: true, data: { messageId: id, count: urls.length, prompts: items.map(it => it.desc || it.tags) } };
                 }
 
                 default:

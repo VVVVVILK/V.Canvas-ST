@@ -80,7 +80,7 @@ await new Promise(r => server.listen(18999, '127.0.0.1', r));
 
 const { generateIllustration, testConnection } = await import('../lib/nai-api.js');
 const { findMarkers, buildDisplayText, stripMarkers, hasMarkers, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream, MAX_MARKER_LEN } = await import('../lib/marker.js');
-const { parseAnalysisJSON, applyMarkers, findAnchor, buildAnalysisMessages, buildAnalysisParts, analysisTokenBudget, resolveCtxSource } = await import('../lib/analysis.js');
+const { parseAnalysisJSON, applyMarkers, findAnchor, buildAnalysisMessages, buildAnalysisParts, analysisTokenBudget, resolveCtxSource, directAppliesTo, buildDirectProse, proseToMarker, applyProseMarker, DIRECT_PROSE_MAX, DIRECT_GUIDE } = await import('../lib/analysis.js');
 const { artistAppliesTo, artistPromptFor, withArtistPrompt, sanitizeArtistPrompt, sanitizeArtistName, ARTIST_PROMPT_MAX } = await import('../lib/artist.js');
 
 let pass = 0, fail = 0;
@@ -313,6 +313,84 @@ report.push('', '== 分析来源与输出预算 ==');
         resolveCtxSource('custom', { url: '', model: 'm' }) === null);
     ok('source custom with blank-only fields -> null',
         resolveCtxSource('custom', { url: '   ', model: '  ' }) === null);
+}
+
+report.push('', '== 正文直出（文生图）==');
+{
+    // ── 形态门控：本模式能否成立，全靠这一个判断 ──
+    // 直连官方 NAI 时送出的是标签串，喂一整段中文散文等于喂噪料，必须挡住。
+    ok('direct applies to description mode', directAppliesTo('description') === true);
+    ok('direct applies to both mode', directAppliesTo('both') === true);
+    ok('direct never applies to tags mode (official NAI)', directAppliesTo('tags') === false);
+    ok('direct unknown mode does not apply', directAppliesTo('nope') === false && directAppliesTo(undefined) === false);
+
+    // ── 载荷组装 ──
+    // 内置作画指令固定打头：它顶替分析模型原本顺带做的「挑一个瞬间 / 按正文还原人物 /
+    // 别把对话画进画面」，缺了它一整段带对话的正文容易画出拼贴怪。
+    ok('built-in guide always leads', buildDirectProse('她推开门。').startsWith(DIRECT_GUIDE));
+    ok('body always comes last', buildDirectProse('她推开门。').endsWith('她推开门。'));
+    ok('empty body yields nothing to send', buildDirectProse('') === '' && buildDirectProse('   ') === '');
+    ok('empty body with style still yields nothing', buildDirectProse('', { style: '厚涂' }) === '');
+    ok('style sits between guide and body', buildDirectProse('正文', { style: '厚涂' }).includes('【画风】厚涂\n\n正文'));
+    ok('quality follows style', buildDirectProse('正文', { style: '厚涂', quality: 'masterpiece' })
+        .indexOf('【画风】厚涂') < buildDirectProse('正文', { style: '厚涂', quality: 'masterpiece' }).indexOf('【画质】masterpiece'));
+    ok('user guide is appended after the built-in one',
+        buildDirectProse('正文', { guide: '用广角镜头' }).indexOf(DIRECT_GUIDE) === 0
+        && buildDirectProse('正文', { guide: '用广角镜头' }).includes('用广角镜头'));
+    ok('work info is included', buildDirectProse('正文', { work: '角色卡：示例' }).includes('【作品信息】\n角色卡：示例'));
+    // 负面提示词照常拼：它默认是空的，填了才算使用者主动选择，
+    // 副作用由他自己权衡（真遇到把这一栏清空即可），不该由插件替他决定不给。
+    ok('negative is passed through when filled',
+        buildDirectProse('正文', { negative: 'lowres, bad anatomy' }).includes('【负面提示词】lowres, bad anatomy'));
+    ok('empty negative adds nothing', buildDirectProse('正文', { negative: '   ' }) === buildDirectProse('正文'));
+    ok('negative sits after quality', buildDirectProse('正文', { quality: 'Q', negative: 'N' })
+        .indexOf('【画质】Q') < buildDirectProse('正文', { quality: 'Q', negative: 'N' }).indexOf('【负面提示词】N'));
+
+    // 总长保护：指令 + 正文整体不得超过 DIRECT_PROSE_MAX，否则包成的标记会被整条丢弃
+    // （表现为请求发了、图拿到了、正文什么都不显示，且零报错）。
+    const bigBody = buildDirectProse('长'.repeat(9000));
+    ok('guide + body stays within the prose limit', bigBody.length <= DIRECT_PROSE_MAX, String(bigBody.length));
+    ok('very long body still yields a parseable marker', findMarkers(proseToMarker(bigBody)).length === 1);
+
+    // ── 包成标记 ──
+    // 刻意不带 `|` 段：findMarkers 的正则要求 `|` 之后至少一个非 `]` 字符，
+    // `[ILLUST: x | ]` 会整条匹配不上 —— 静默吞掉、零报错。
+    ok('prose to marker has no pipe segment', proseToMarker('正文') === '[ILLUST: 正文]');
+    ok('empty prose yields no marker', proseToMarker('') === '' && proseToMarker('   ') === '');
+    ok('pipe and brackets are neutralised', proseToMarker('a|b [c]') === '[ILLUST: a/b c]');
+    ok('newlines collapse to spaces', proseToMarker('甲\n\n乙') === '[ILLUST: 甲 乙]');
+
+    // ── 长度保护 ──
+    // 超过 MAX_MARKER_LEN 的标记会被 findMarkers 整条丢弃，表现为「请求发出去了、
+    // 图也拿到了、但正文里什么都不显示」，且全程零报错。这条必须锁死。
+    const longMarker = proseToMarker('长'.repeat(5000));
+    ok('overlong prose is truncated to fit the marker guard', longMarker.length <= MAX_MARKER_LEN, String(longMarker.length));
+    ok('overlong marker still parses', findMarkers(longMarker).length === 1);
+    ok('exactly-at-limit marker survives', findMarkers(proseToMarker('x'.repeat(DIRECT_PROSE_MAX))).length === 1);
+
+    // ── 追加到正文末尾，且能被既有的显示链路消费 ──
+    const body = '第一段。\n\n第二段。';
+    const src = applyProseMarker(body, '第二段的内容');
+    ok('prose marker appended at the end', src.endsWith('[ILLUST: 第二段的内容]'));
+    ok('original body is untouched', src.startsWith(body));
+    const ms = findMarkers(src);
+    ok('exactly one marker in direct source', ms.length === 1);
+    ok('marker desc is the prose', ms[0].desc === '第二段的内容');
+    // 直出固定走 description 档，但标签档也必须能取到正文（否则送空串）。
+    ok('selectPrompt(description) returns the prose', selectPrompt(ms[0], 'description') === '第二段的内容');
+    ok('selectPrompt(tags) falls back to the prose', selectPrompt(ms[0], 'tags') === '第二段的内容');
+    ok('selectPrompt(both) returns the prose', selectPrompt(ms[0], 'both') === '第二段的内容');
+    ok('display text renders one image', /!\[Illustration\]\(img\)/.test(buildDisplayText(src, ['img'], 'Illustration', 'drop')));
+    ok('empty prose leaves the body alone', applyProseMarker(body, '') === body);
+    ok('empty body leaves it alone', applyProseMarker('', '正文') === '');
+
+    // 整条链路回环：正文 → 组装载荷 → 包成标记 → 追加 → 能被既有显示链路消费
+    const e2e = applyProseMarker('正文内容', buildDirectProse('正文内容', {
+        guide: 'G', work: 'W', style: '厚涂', quality: 'Q',
+    }));
+    ok('end-to-end direct source parses to exactly one marker', findMarkers(e2e).length === 1);
+    ok('end-to-end marker survives the rehydrate count check',
+        findMarkers(e2e).length === 1 && findMarkers(e2e)[0].desc.length > 0);
 }
 
 report.push('', '== 画师串 ==');

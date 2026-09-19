@@ -452,9 +452,9 @@ input[type=number]{-moz-appearance:textfield}
         <div class="page-head">
           <h1>上下文出图</h1>
           <p>
-            由一个文字模型阅读正文与前文，判定配图位置并生成出图提示词，再交由当前出图上游作画。
-            该路线不依赖剧情模型配合，适用于各类角色卡。
+            角色回复里没有 <span class="mono">[ILLUST: …]</span> 标记时，由插件自动补图 —— 不依赖剧情模型配合，适用于各类角色卡。
             <b>默认即开启，且默认使用酒馆主 API —— 装好就能用，无需配置。</b>
+            补图有两种方式：让分析模型把正文翻成出图提示词，或把正文原样送上游（真正的文生图）。
           </p>
         </div>
 
@@ -478,6 +478,70 @@ input[type=number]{-moz-appearance:textfield}
         </div>
 
         <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">补图方式</div><div class="card-desc">没有标记时，把什么送给出图上游</div></div>
+          </div>
+          <div class="card-body">
+            <label class="field">
+              <span class="lab">正文里没有标记时</span>
+              <select id="f-ctx_mode">
+                <option value="direct">正文原样直出（默认 · 真正的文生图）</option>
+                <option value="analyze">分析模型转提示词（直连官方 NAI 必选）</option>
+              </select>
+              <span class="hint">
+                <b>正文原样直出（默认）</b> —— 跳过分析模型，把<b>刚生成的这一条角色正文</b>原样送给出图上游，
+                链条是「文 → 图」，也就是真正意义上的文生图。<b>不需要配任何分析模型</b>，
+                也不再多花一次模型调用与十几秒等待 —— 装上就能用。
+              </span>
+              <span class="hint">
+                <b>分析模型转提示词</b> —— 先让一个文字模型读正文，挑出值得画的画面、定好插在哪一段下面、
+                再写成出图提示词，然后送上游。链条是「文 → 文 → 图」。
+                <b>直连官方 NovelAI / NAI 网关必须选这一档</b>：那类上游按 Danbooru 标签训练，
+                喂一整段中文散文等于喂噪料。好处是有分镜、能定点插图、一条回复可出多张。
+              </span>
+            </label>
+            <div class="notice">
+              <b>正文直出送的是什么</b><br>
+              只有<b>最新那一条角色回复的正文</b> —— 之前的对话、你发的消息、角色卡设定，一条都不会带过去。
+              酒馆里是人与 AI 的来回对话，整段塞进去既费 token，也会让生图模型分不清到底该画哪一幕。
+            </div>
+            <div class="notice warn">
+              <b>正文直出的三条限制</b><br>
+              ① <b>只在上游读得懂自然语言时才成立</b>：聊天画图模型 / OpenAI 兼容生图可以；
+              直连官方 NAI 不行 —— 送出形态为「标签串」时本模式会自动跳过，不报错也不出图。<br>
+              ② <b>一条回复固定一张图</b>：不经分析就没有分镜，同一个正文让模型画 N 遍只会得到 N 张几乎一样的图，
+              因此「每轮上限」在本模式下不生效。<br>
+              ③ <b>图固定挂在回复末尾</b>：不经分析就没有插入位置，正文末尾是唯一没有歧义的地方。
+            </div>
+            <label class="field">
+              <span class="lab">作画指令 · 附加（选填）</span>
+              <textarea id="f-ctx_direct_guide" rows="6" placeholder="留空 = 只用内置指令。想固定构图、镜头、色调等自己的偏好就写在这里，会拼在内置指令之后、正文之前"></textarea>
+              <span class="hint">
+                直出时插件会先给生图模型一段<b>内置作画指令</b>（只画正文里最具画面感的那一个瞬间、
+                人物按正文还原、不要把多个时刻糊进一张图、不要把正文里的对话画成画面文字）。
+                它顶替的是分析模型原本顺带做的那几件事 ——
+                <b>少了它，一整段带对话的正文容易画出拼贴怪、人物被改成现代时装</b>，所以内置指令不提供关闭。
+                这里填的是你想<b>额外</b>固定的要求，不是替换。
+              </span>
+            </label>
+
+            <div class="notice warn">
+              <b>切到直出后，「提示词」页那些字段的去向变了</b><br>
+              以前它们都是<b>注入给分析模型</b>的，现在直出模式下没有分析模型，改由生图模型直接接收：<br>
+              ・<b>画风</b> → 拼成 <span class="mono">【画风】…</span> 放在正文之前（<b>画风一致性的主要来源，强烈建议填</b>）<br>
+              ・<b>正面质量提示词</b> → 拼成 <span class="mono">【画质】…</span>，同上<br>
+              ・<b>负面提示词</b> → 拼成 <span class="mono">【负面提示词】…</span>，同样放在正文之前（对聊天画图模型说「不要出现 X」偶尔会有反向提示的副作用，遇到就把这一栏清空 —— 这一栏本来就默认留空，填不填由你决定）<br>
+              ・<b>破限词·分析模型</b> → <b>直出模式下不使用</b>（没有分析模型可破）；<b>破限词·生图上游</b>照旧拼在最前面，现在它就是直接给生图模型的<br>
+              ・<b>画师串</b> → 直出自动跳过（送的是自然语言，英文画师名混进散文只会污染描述）
+            </div>
+
+            <div class="muted" style="font-size:12px;line-height:1.65">
+              两种模式共用同一个开关（上面「总开关」）与同一套出图设置（出图地址、尺寸、破限词·生图上游等）。
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="card-analyzer">
           <div class="card-head">
             <div><div class="card-title">分析模型</div><div class="card-desc">读正文、定位置、写提示词的那个模型</div></div>
             <button class="btn sm" id="btn-ctx-test">查看 / 测试</button>
@@ -912,7 +976,7 @@ function toggleSidebar(open) {
 $('btn-menu').onclick = () => toggleSidebar(true);
 
 /* ── 设置界面 ── */
-const TEXT_KEYS = ['base_url', 'api_key', 'model', 'negative', 'prompt_format', 'exclude_types', 'inject_position', 'ctx_source', 'ctx_url', 'ctx_key', 'ctx_model', 'ctx_style', 'ctx_quality', 'ctx_negative', 'jb_llm', 'jb_image', 'active_artist', 'sign_mode', 'exclusive_salt'];
+const TEXT_KEYS = ['base_url', 'api_key', 'model', 'negative', 'prompt_format', 'exclude_types', 'inject_position', 'ctx_mode', 'ctx_direct_guide', 'ctx_source', 'ctx_url', 'ctx_key', 'ctx_model', 'ctx_style', 'ctx_quality', 'ctx_negative', 'jb_llm', 'jb_image', 'active_artist', 'sign_mode', 'exclusive_salt'];
 const NUM_KEYS = ['width', 'height', 'steps', 'scale', 'max_per_round', 'timeout_sec', 'interval_ms', 'inject_depth', 'ctx_timeout_sec'];
 const BOOL_KEYS = ['enabled', 'swipe_regenerate', 'strip_marker', 'inject_prompt', 'debug', 'ctx_enabled', 'parallel'];
 
@@ -926,6 +990,15 @@ function fillForm(s) {
   for (const k of BOOL_KEYS) { const el = $('sw-' + k); if (el) el.classList.toggle('on', !!s[k]); }
   renderArtistRows(s.artist_presets);
   syncCtxSourceUI();
+  syncCtxModeUI();
+}
+
+// 选「正文原样直出」时整张分析模型卡片都不参与，直接收起来 ——
+// 留着会让人以为还得配一个分析模型才能用。
+function syncCtxModeUI() {
+  const sel = $('f-ctx_mode');
+  const card = $('card-analyzer');
+  if (card) card.style.display = (sel && sel.value === 'direct') ? 'none' : '';
 }
 
 // 选「跟随酒馆主 API」时地址 / Key / 模型名三项不生效，直接收起来，
@@ -1056,6 +1129,8 @@ NUM_KEYS.forEach(k => {
   const el = $('f-' + k);
   if (el) el.addEventListener('change', () => commit({ [k]: el.value }, '设置'));
 });
+// 切换补图方式后立刻收起 / 展开分析模型卡片（上面的通用循环只负责保存）
+$('f-ctx_mode').addEventListener('change', () => syncCtxModeUI());
 BOOL_KEYS.forEach(k => {
   const el = $('sw-' + k);
   if (!el) return;
