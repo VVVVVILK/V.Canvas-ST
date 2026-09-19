@@ -80,7 +80,7 @@ await new Promise(r => server.listen(18999, '127.0.0.1', r));
 
 const { generateIllustration, testConnection } = await import('../lib/nai-api.js');
 const { findMarkers, buildDisplayText, stripMarkers, hasMarkers, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream, MAX_MARKER_LEN } = await import('../lib/marker.js');
-const { parseAnalysisJSON, applyMarkers, findAnchor, buildAnalysisMessages, buildAnalysisParts, analysisTokenBudget, resolveCtxSource, directAppliesTo, buildDirectProse, proseToMarker, applyProseMarker, DIRECT_PROSE_MAX, DIRECT_GUIDE } = await import('../lib/analysis.js');
+const { parseAnalysisJSON, applyMarkers, findAnchor, buildAnalysisMessages, buildAnalysisParts, analysisTokenBudget, resolveCtxSource, directAppliesTo, buildDirectProse, proseToMarker, applyProseMarker, DIRECT_PROSE_MAX, DIRECT_GUIDE, pickProseAnchor } = await import('../lib/analysis.js');
 const { artistAppliesTo, artistPromptFor, withArtistPrompt, sanitizeArtistPrompt, sanitizeArtistName, ARTIST_PROMPT_MAX } = await import('../lib/artist.js');
 
 let pass = 0, fail = 0;
@@ -402,10 +402,43 @@ report.push('', '== 正文直出（文生图）==');
     ok('empty prose leaves the body alone', applyProseMarker(body, '') === body);
     ok('empty body leaves it alone', applyProseMarker('', '正文') === '');
 
+    // ── 落点：不经分析模型时，图不该永远挂在最底下 ──
+    const rep = [
+        '「你终于来了。」她说。',
+        '夕阳把整条街染成橘红色，晾衣绳上的白衬衫被风吹得鼓起来，远处传来收摊的吆喝声。',
+        '「抱歉，路上耽搁了。」',
+        '他把肩上的旧帆布包放下，抬手指了指街角那家还亮着灯的面馆。',
+    ].join('\n\n');
+
+    ok('picks a paragraph, not the end', pickProseAnchor(rep) > 0 && pickProseAnchor(rep) < rep.length);
+    // 判据是「去掉对白后剩下的叙述长度」—— 对白密集的段落不该被选中
+    const chosen = rep.slice(0, pickProseAnchor(rep));
+    ok('never lands on a pure-dialogue paragraph', !chosen.trimEnd().endsWith('」'));
+    ok('lands after the longest narrative paragraph',
+        chosen.includes('晾衣绳上的白衬衫被风吹得鼓起来'));
+
+    ok('single paragraph -> no anchor (falls back to the end)', pickProseAnchor('只有一段话，没有空行。') === -1);
+    ok('all-dialogue text -> no anchor', pickProseAnchor('「甲」\n\n「乙」\n\n「丙」') === -1);
+    ok('empty text -> no anchor', pickProseAnchor('') === -1 && pickProseAnchor(null) === -1);
+
+    const placed = applyProseMarker(rep, '正文载荷', pickProseAnchor(rep));
+    const pm = findMarkers(placed);
+    ok('placed marker still parses to exactly one', pm.length === 1);
+    ok('placed marker sits between paragraphs, not at the end',
+        placed.indexOf('[ILLUST:') < placed.length - 20 && placed.trimEnd().endsWith('面馆。'));
+    ok('text before and after survives intact',
+        placed.includes('她说。') && placed.includes('面馆。'));
+    ok('explicit end placement still appends',
+        applyProseMarker(rep, '载荷', -1).trimEnd().endsWith('[ILLUST: 载荷]'));
+    ok('out-of-range index falls back to the end',
+        applyProseMarker(rep, '载荷', 9999).trimEnd().endsWith('[ILLUST: 载荷]'));
+
     // 整条链路回环：正文 → 组装载荷 → 包成标记 → 追加 → 能被既有显示链路消费
     const e2e = applyProseMarker('正文内容', buildDirectProse('正文内容', {
         guide: 'G', work: 'W', style: '厚涂', quality: 'Q',
     }));
+    ok('e2e: pick + place + parse works with a real shape',
+        findMarkers(applyProseMarker(rep, buildDirectProse(rep, { style: '厚涂' }), pickProseAnchor(rep))).length === 1);
     ok('end-to-end direct source parses to exactly one marker', findMarkers(e2e).length === 1);
     ok('end-to-end marker survives the rehydrate count check',
         findMarkers(e2e).length === 1 && findMarkers(e2e)[0].desc.length > 0);

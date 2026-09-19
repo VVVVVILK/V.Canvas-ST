@@ -21,7 +21,7 @@ import {
 import { findMarkers, hasMarkers, stripMarkers, buildDisplayText, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream } from './lib/marker.js';
 import { generateIllustration, testConnection } from './lib/nai-api.js';
 import {
-    applyMarkers, resolveCtxSource, applyProseMarker, buildDirectProse, directAppliesTo,
+    applyMarkers, resolveCtxSource, applyProseMarker, buildDirectProse, directAppliesTo, pickProseAnchor,
 } from './lib/analysis.js';
 import { artistAppliesTo, artistPromptFor, withArtistPrompt } from './lib/artist.js';
 import { analyzeContext, testAnalyzeModel } from './lib/llm-api.js';
@@ -377,11 +377,15 @@ async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
     });
     if (!prose.trim()) { finishProgress('正文为空，跳过', false); return; }
 
-    log(`${tag} 正文 ${[...prose].length} 字直送生图上游（不经分析模型）`);
+    // 落点：不经分析模型就没有 anchor，用零成本启发式挑一个（挑不出来则为 -1 → 挂末尾）。
+    const body = stripMarkers(String(msg.mes ?? ''));
+    const at = cfg.ctx_direct_place === 'end' ? -1 : pickProseAnchor(body);
+    log(`${tag} 正文 ${[...prose].length} 字直送生图上游（不经分析模型）；落点 ${at < 0 ? '末尾' : at}`);
+
     showProgress('正在绘制插画 … 约 30~60 秒');
     // 直出固定一张：同一个正文让模型画 N 遍只会得到 N 张几乎一样的图，
     // 而分析模型那档是因为做了分镜才可能出多张。
-    await runIllustration(ctx, messageId, msg, [{ desc: prose }], signal, { direct: true });
+    await runIllustration(ctx, messageId, msg, [{ desc: prose }], signal, { direct: true, at });
 }
 
 // runIllustration 把画面列表转成标记后，复用既有的出图与就地替换链路。
@@ -391,7 +395,7 @@ async function runIllustration(ctx, messageId, msg, items, signal, opt = {}) {
     // 直出不经过 anchor（没人决定插在哪一段下面），标记追加在整条回复末尾；
     // 其余路线由 applyMarkers 按 anchor 就地插入。
     const src = opt.direct
-        ? applyProseMarker(reply, items[0]?.desc ?? '')
+        ? applyProseMarker(reply, items[0]?.desc ?? '', opt.at ?? -1)
         : applyMarkers(reply, items);
     const markers = findMarkers(src);
     if (!markers.length) {
@@ -1293,6 +1297,7 @@ function installBridge() {
                     try {
                         let items;
                         let direct = false;
+                        let directAt = -1;
                         if (c.ctx_mode === 'direct') {
                             const gate = resolvePromptMode(c.prompt_format, c.base_url, c.upstream_type);
                             if (!directAppliesTo(gate)) {
@@ -1303,8 +1308,10 @@ function installBridge() {
                                 return { ok: false, error: why };
                             }
                             direct = true;
+                            const body = stripMarkers(String(msg.mes ?? ''));
+                            directAt = c.ctx_direct_place === 'end' ? -1 : pickProseAnchor(body);
                             items = [{
-                                desc: buildDirectProse(stripMarkers(String(msg.mes ?? '')), {
+                                desc: buildDirectProse(body, {
                                     guide: c.ctx_direct_guide,
                                     work: workLabel(ctx),
                                     style: c.ctx_style,
@@ -1335,7 +1342,7 @@ function installBridge() {
 
                         // 重新执行时先清掉上一条的插图状态，避免与旧图叠加
                         if (msg.extra?.illust) { delete msg.extra.illust; delete msg.extra.illust_done; }
-                        await runIllustration(ctx, id, msg, items, signal, { direct });
+                        await runIllustration(ctx, id, msg, items, signal, { direct, at: directAt });
 
                         const urls = (msg.extra?.illust?.urls ?? []).filter(Boolean);
                         if (!urls.length) {

@@ -505,6 +505,23 @@ input[type=number]{-moz-appearance:textfield}
               只有<b>最新那一条角色回复的正文</b> —— 之前的对话、你发的消息、角色卡设定，一条都不会带过去。
               酒馆里是人与 AI 的来回对话，整段塞进去既费 token，也会让生图模型分不清到底该画哪一幕。
             </div>
+            <label class="field">
+              <span class="lab">插图插在哪</span>
+              <select id="f-ctx_direct_place">
+                <option value="scene">插在画面感最强的那一段下面（推荐）</option>
+                <option value="end">一律插在回复末尾</option>
+              </select>
+              <span class="hint">
+                直出不经分析模型，没有「原文引句」可用来定位，所以要在正文里自己挑一个落点：
+                去掉引号里的对白、去掉括号里的补充之后，<b>剩下最长的那一段</b>就是最可能在写景写人的地方。
+              </span>
+              <span class="hint">
+                它不如分析模式给的落点准（那边是「画什么」和「插哪」由同一个模型一次定下来的），
+                但比一律挂末尾强 —— 长回复里图总在最底下，读起来像附件而不是配图。
+                <b>整条回复只有一段、或整段都是纯对白时，会自动退回末尾</b>。
+              </span>
+            </label>
+
             <div class="notice warn">
               <b>正文直出的三条限制</b><br>
               ① <b>只在上游读得懂自然语言时才成立</b>：聊天画图模型 / OpenAI 兼容生图可以；
@@ -516,7 +533,8 @@ input[type=number]{-moz-appearance:textfield}
               <span class="mono">适配服务</span> 即可。<br>
               ② <b>一条回复固定一张图</b>：不经分析就没有分镜，同一个正文让模型画 N 遍只会得到 N 张几乎一样的图，
               因此「每轮上限」在本模式下不生效。<br>
-              ③ <b>图固定挂在回复末尾</b>：不经分析就没有插入位置，正文末尾是唯一没有歧义的地方。
+              ③ <b>落点是猜的</b>：不经分析就没有「原文引句」可用来定位，只能按上面那条规则挑一段。
+              要位置准确（图就配在它画的那一幕下面），得用分析模式 —— 那边「画什么」与「插哪」是一次定下来的。
             </div>
             <label class="field">
               <span class="lab">作画指令 · 附加（选填）</span>
@@ -1003,7 +1021,7 @@ function toggleSidebar(open) {
 $('btn-menu').onclick = () => toggleSidebar(true);
 
 /* ── 设置界面 ── */
-const TEXT_KEYS = ['base_url', 'api_key', 'upstream_type', 'model', 'negative', 'prompt_format', 'exclude_types', 'inject_position', 'ctx_mode', 'ctx_direct_guide', 'ctx_source', 'ctx_url', 'ctx_key', 'ctx_model', 'ctx_style', 'ctx_quality', 'ctx_negative', 'jb_llm', 'jb_image', 'active_artist', 'sign_mode', 'exclusive_salt'];
+const TEXT_KEYS = ['base_url', 'api_key', 'upstream_type', 'model', 'negative', 'prompt_format', 'exclude_types', 'inject_position', 'ctx_mode', 'ctx_direct_guide', 'ctx_direct_place', 'ctx_source', 'ctx_url', 'ctx_key', 'ctx_model', 'ctx_style', 'ctx_quality', 'ctx_negative', 'jb_llm', 'jb_image', 'active_artist', 'sign_mode', 'exclusive_salt'];
 const NUM_KEYS = ['width', 'height', 'steps', 'scale', 'max_per_round', 'timeout_sec', 'interval_ms', 'inject_depth', 'ctx_timeout_sec'];
 const BOOL_KEYS = ['enabled', 'swipe_regenerate', 'strip_marker', 'inject_prompt', 'debug', 'ctx_enabled', 'parallel'];
 
