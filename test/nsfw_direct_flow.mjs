@@ -8,6 +8,7 @@
 
 import { detectNsfw, parseWords, buildWordList } from '../lib/nsfw.js';
 import { resolvePromptMode, selectPrompt } from '../lib/marker.js';
+import { buildAnalysisParts } from '../lib/analysis.js';
 
 let pass = 0, fail = 0;
 function ok(name, cond, extra) {
@@ -88,6 +89,32 @@ ok('分析产物缺 tags 时回退 desc（防呆，不送空串）', fallback ==
 ok('自定义词表可扩展（加 topless 命中）', detectNsfw('她只穿着 topless 的短衣', 'topless') === true);
 ok('内置词 nsfw 命中', detectNsfw('this image is nsfw', '') === true);
 ok('词表解析支持中英文逗号分号', parseWords('a，b;c,d').join(',') === 'a,b,c,d');
+
+// ── 6. 命中分流后的选图要求：交给分析模型语义判断，而不是关键词硬挑段 ──
+// 用户场景：正文前段聊日常、中段/后段才是真正的成人画面 —— 但位置不是固定的，
+// 也可能通篇都是成人内容。因此命中分流后只告诉分析模型「本次是 NSFW」，由它自己判断
+// 哪一刻才是真正的成人时刻并据此选图，禁止为了「画面感」去选日常铺垫。
+const MIXED_BODY = [
+    '两人在咖啡馆里聊着最近的工作，气氛轻松，窗外的阳光洒在桌面上。',
+    '',
+    '她解开衣扣，露出裸体的上身，两人的唇贴在一起，忘情地吻着。',
+    '',
+    '夜色渐深，他们相拥而卧，房间里只剩床头灯的光。',
+].join('\n');
+
+ok('命中分流判定：整段正文任一位置命中即分流', detectNsfw(MIXED_BODY, cfgOn.nsfw_words) === true);
+ok('普通正文不命中分流', detectNsfw(SFW_BODY, cfgOn.nsfw_words) === false);
+
+// ── 7. nsfw 指令拼进分析请求（语义判断，不预选段）──
+const nsfwParts = buildAnalysisParts(MIXED_BODY, '', 1, { nsfw: true });
+ok('nsfw 指令拼进 user 消息：标注本次为成人向', nsfwParts.user.includes('成人向（NSFW）'));
+ok('nsfw 指令拼进 user 消息：要求自行判断成人时刻', nsfwParts.user.includes('自行判断'));
+ok('nsfw 指令拼进 user 消息：禁止选日常铺垫', nsfwParts.user.includes('日常铺垫'));
+ok('nsfw 指令拼进 user 消息：正文仍完整下发', nsfwParts.user.includes('咖啡馆'));
+ok('nsfw 指令拼进 user 消息：不预选任何段落', !nsfwParts.user.includes('必须选图的段落'));
+const plainParts = buildAnalysisParts(MIXED_BODY, '', 1, {});
+ok('无 nsfw 时 user 消息不含 NSFW 指令', !plainParts.user.includes('成人向（NSFW）'));
+ok('无 nsfw 时 user 消息不含 NSFW 指令（语义判断句）', !plainParts.user.includes('自行判断'));
 
 console.log(`\nRESULT: ${pass} passed / ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -153,6 +153,7 @@ async function runCtxAnalyzer(kind, cfg, opts) {
         quality: cfg.ctx_quality,
         negative: cfg.ctx_negative,
         jb: cfg.jb_llm,
+        nsfw: opts.nsfw,
         max: opts.max,
         timeoutMs: cfg.ctx_timeout_sec * 1000,
         signal: opts.signal,
@@ -398,11 +399,14 @@ async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
         }
         showProgress('正在分析正文…（命中分流条件，转分析模型出标签）');
         log(`${tag} 正文命中分流条件，临时转分析模型（${analyzerLabel(cfg, kind)}）生成标签后走分流通道`);
+        // 命中 NSFW 分流：交给分析模型语义判断「哪一刻才是真正的成人画面」（前/中/后段都可能），
+        // 而不是用关键词硬挑段 —— 关键词只负责决定「要不要分流」，选哪一刻由分析模型读正文判断。
         const items = await runCtxAnalyzer(kind, cfg, {
             reply: body,
             context: collectContext(ctx.chat, messageId),
             work: workLabel(ctx),
             max: 1,
+            nsfw: true,
             signal,
         });
         if (isAborted(signal)) { finishProgress('已终止', false); return; }
