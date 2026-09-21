@@ -79,7 +79,8 @@ const server = http.createServer((req, res) => {
 await new Promise(r => server.listen(18999, '127.0.0.1', r));
 
 const { generateIllustration, testConnection } = await import('../lib/nai-api.js');
-const { findMarkers, buildDisplayText, stripMarkers, hasMarkers, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream, MAX_MARKER_LEN } = await import('../lib/marker.js');
+const { findMarkers, buildDisplayText, stripMarkers, hasMarkers, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream, MAX_MARKER_LEN, redistributeMarkers, isTailClustered } = await import('../lib/marker.js');
+const { detectNsfw, parseWords, buildWordList } = await import('../lib/nsfw.js');
 const { parseAnalysisJSON, applyMarkers, findAnchor, buildAnalysisMessages, buildAnalysisParts, analysisTokenBudget, resolveCtxSource, directAppliesTo, buildDirectProse, proseToMarker, applyProseMarker, DIRECT_PROSE_MAX, DIRECT_GUIDE, pickProseAnchor } = await import('../lib/analysis.js');
 const { artistAppliesTo, artistPromptFor, withArtistPrompt, sanitizeArtistPrompt, sanitizeArtistName, ARTIST_PROMPT_MAX } = await import('../lib/artist.js');
 
@@ -592,6 +593,88 @@ const BASE = { baseUrl: 'http://127.0.0.1:18999', apiKey: 'test-key-0000', model
 
     const tc = await testConnection({ baseUrl: BASE.baseUrl, apiKey: 'x' });
     ok('testConnection returns human text', tc.includes('0'), tc);
+}
+
+/* ── 标记落点矫正（模型把标记全甩在末尾时的兜底）── */
+{
+    const body = '第一段叙述，她推开木门走了进去。\n\n第二段叙述，雨声在屋檐上连绵不断。\n\n第三段叙述，烛火把两个人的影子拉得很长。\n\n第四段叙述，天亮之前谁都没有再说话。';
+    const src = `${body}\n\n[ILLUST: 画面一 | 1girl, silver hair]\n\n[ILLUST: 画面二 | 2girls, candle]`;
+
+    ok('tail cluster is detected', isTailClustered(src));
+
+    const moved = redistributeMarkers(src);
+    ok('redistribute returns a new text', typeof moved === 'string' && moved !== src);
+
+    const ms = findMarkers(moved ?? '');
+    ok('both markers survive redistribution', ms.length === 2, JSON.stringify(ms.map(m => m.index)));
+    ok('markers keep their original order', ms.length === 2 && ms[0].start < ms[1].start);
+    ok('first marker is no longer in the tail', ms.length === 2 && ms[0].start < (moved?.length ?? 0) * 0.75,
+        JSON.stringify({ at: ms[0]?.start, len: moved?.length }));
+    ok('prose is byte-for-byte unchanged', stripMarkers(moved ?? '') === stripMarkers(src));
+    ok('marker count matches the original', findMarkers(moved ?? '').length === findMarkers(src).length);
+
+    // 落点必须落在段落之间：图后面还得有正文，否则等于没搬
+    const tail = moved?.slice(ms[1]?.end ?? 0) ?? '';
+    ok('text still follows the last marker', tail.replace(/\s+/g, '').length > 0, JSON.stringify(tail));
+
+    // 渲染出来后第一张图不应贴在整条消息的末尾
+    const dt = buildDisplayText(moved ?? '', ['/img/a.png', '/img/b.png'], 'Illustration', 'drop');
+    ok('first image is not the last thing in the message',
+        !!dt && dt.indexOf('![Illustration](/img/a.png)') < dt.length - 60, JSON.stringify(dt?.slice(-80)));
+
+    // 标记本来就分散的，一律不动
+    const spread = `${body.slice(0, 20)}\n\n[ILLUST: 早 | 1girl]\n\n${body.slice(20, 60)}\n\n${body.slice(60)}`;
+    ok('already-spread markers are left alone', redistributeMarkers(spread) === null);
+
+    // 只有一段时无处可插，也不该改
+    const single = '一整段没有空行的正文，后面跟着一个标记。[ILLUST: x | y]';
+    ok('single paragraph -> no redistribution', redistributeMarkers(single) === null);
+    ok('single paragraph is not even flagged', isTailClustered(single) === false);
+
+    // 没有标记
+    ok('no markers -> null', redistributeMarkers(body) === null);
+    ok('no markers -> not flagged', isTailClustered(body) === false);
+
+    // 单换行分段：只认空行会把整段算作「一段」，矫正会静默失效
+    const nlBody = '第一段叙述，她推开木门。\n第二段叙述，雨声连绵不断。\n第三段叙述，烛火摇曳。\n第四段叙述，天亮之前无人说话。';
+    const nlSrc = `${nlBody}\n[ILLUST: 画面 | 1girl]`;
+    ok('single-newline body is flagged', isTailClustered(nlSrc) === true, JSON.stringify(nlSrc.slice(-40)));
+    const nlMoved = redistributeMarkers(nlSrc);
+    ok('single-newline body gets redistributed', typeof nlMoved === 'string');
+    const nlMs = findMarkers(nlMoved ?? '');
+    ok('single-newline: marker survives', nlMs.length === 1);
+    ok('single-newline: marker is not at the end',
+        nlMs.length === 1 && (nlMoved ?? '').slice(nlMs[0].end).replace(/\s+/g, '').length > 0,
+        JSON.stringify((nlMoved ?? '').slice(-60)));
+    // 单换行正文里插入独占一行的标记，删掉标记后会多出一次换行（插图上下留白），
+    // 这是排版上不可避免的；要验证的是段落本身没被动过 —— 内容与顺序都还在。
+    const paras = (s) => stripMarkers(s).split(/\n+/).map(x => x.trim()).filter(Boolean);
+    ok('single-newline: every paragraph kept in order',
+        JSON.stringify(paras(nlMoved ?? '')) === JSON.stringify(paras(nlSrc)),
+        JSON.stringify(paras(nlMoved ?? '')) + ' vs ' + JSON.stringify(paras(nlSrc)));
+}
+
+/* ── 分流判定 ── */
+{
+    ok('plain safe prompt does not divert', detectNsfw('1girl, silver hair, neon street, raining', '') === false);
+    ok('empty text does not divert', detectNsfw('', '') === false);
+    ok('blank text does not divert', detectNsfw('   \n  ', '') === false);
+
+    ok('builtin grading word hits', detectNsfw('1girl, nude, outdoors', '') === true);
+    ok('upper case hits too', detectNsfw('NSFW scene', '') === true);
+    ok('chinese grading word hits', detectNsfw('两个人裸体相拥', '') === true);
+
+    // 词边界：包含关系不算命中，否则 asexual / nonnude 之类会被误判
+    ok('substring inside a longer word does not hit', detectNsfw('asexual, nonnude', '') === false);
+
+    ok('custom word list hits', detectNsfw('她穿着泳装走在沙滩上', '泳装') === true);
+    ok('custom word list is additive', detectNsfw('1girl, bikini', 'bikini') === true);
+    ok('unrelated custom word does not hit', detectNsfw('1girl, dress', 'bikini') === false);
+
+    ok('word list parsing splits on comma', parseWords('a, b，c; d').length === 4, JSON.stringify(parseWords('a, b，c; d')));
+    ok('word list drops blanks', parseWords('a,, ,b').length === 2);
+    ok('builtin words are always present', buildWordList('').includes('nsfw'));
+    ok('custom words are appended', buildWordList('zzz').includes('zzz'));
 }
 
 server.close();

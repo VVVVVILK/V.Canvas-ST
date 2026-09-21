@@ -89,6 +89,11 @@ input[type=text],input[type=password],input[type=number],select,textarea{width:1
 textarea{resize:vertical;line-height:1.6}
 input:focus,select:focus,textarea:focus{border-color:hsl(152 65% 45% / .6);box-shadow:0 0 0 3px hsl(152 65% 45% / .12)}
 input[type=number]{-moz-appearance:textfield}
+/* 密钥框：输入框默认隐藏明文，右侧按钮切换显示 */
+.secret-wrap{position:relative;display:block}
+.secret-wrap input{padding-right:66px}
+.secret-toggle{position:absolute;top:50%;right:6px;transform:translateY(-50%);padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--muted);color:var(--muted-fg);font-size:11.5px;cursor:pointer;font-family:inherit}
+.secret-toggle:hover{color:var(--fg);filter:brightness(1.15)}
 .btn{display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:8px;border:1px solid var(--border);background:var(--muted);color:var(--fg);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:filter .15s,opacity .15s}
 .btn:hover{filter:brightness(1.15)}
 .btn:disabled{opacity:.55;cursor:not-allowed}
@@ -534,7 +539,12 @@ input[type=number]{-moz-appearance:textfield}
               ② <b>一条回复固定一张图</b>：不经分析就没有分镜，同一个正文让模型画 N 遍只会得到 N 张几乎一样的图，
               因此「每轮上限」在本模式下不生效。<br>
               ③ <b>落点是猜的</b>：不经分析就没有「原文引句」可用来定位，只能按上面那条规则挑一段。
-              要位置准确（图就配在它画的那一幕下面），得用分析模式 —— 那边「画什么」与「插哪」是一次定下来的。
+              要位置准确（图就配在它画的那一幕下面），得用分析模式 —— 那边「画什么」与「插哪」是一次定下来的。<br>
+              ④ <b>命中「分流通道」时这一张会临时转分析</b>：直出送的是自然语言，而分流通道
+              （真 NAI / 网关）只吃标签，直接把散文当标签喂过去必然画不出来 ——
+              因此正文命中分流条件时，仅这一张临时调用分析模型把正文翻成标签再走分流。
+              分析模型默认就是酒馆主 API（零配置）；想给这一路换专用模型，
+              在下方「分析模型」卡片选「自定义一个模型」即可。
             </div>
             <label class="field">
               <span class="lab">作画指令 · 附加（选填）</span>
@@ -594,7 +604,10 @@ input[type=number]{-moz-appearance:textfield}
               </label>
               <label class="field">
                 <span class="lab">API Key</span>
-                <input type="text" id="f-ctx_key" placeholder="该服务的密钥；不需要鉴权的本地服务可留空">
+                <span class="secret-wrap">
+                  <input type="password" id="f-ctx_key" autocomplete="off" placeholder="该服务的密钥；不需要鉴权的本地服务可留空">
+                  <button type="button" class="secret-toggle" data-secret="f-ctx_key" aria-label="显示或隐藏">显示</button>
+                </span>
               </label>
               <label class="field">
                 <span class="lab">模型名</span>
@@ -712,7 +725,10 @@ input[type=number]{-moz-appearance:textfield}
             </label>
             <label class="field">
               <span class="lab">API Key</span>
-              <input type="text" id="f-api_key" placeholder="适配服务的 nai_key；服务端留空时任意值均可">
+              <span class="secret-wrap">
+                <input type="password" id="f-api_key" autocomplete="off" placeholder="适配服务的 nai_key；服务端留空时任意值均可">
+                <button type="button" class="secret-toggle" data-secret="f-api_key" aria-label="显示或隐藏">显示</button>
+              </span>
             </label>
             <label class="field">
               <span class="lab">模型名</span>
@@ -720,6 +736,116 @@ input[type=number]{-moz-appearance:textfield}
               <span class="hint">无默认值，必须手动填写。</span>
             </label>
             <div class="err" id="test-err"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">分流通道</div><div class="card-desc">主通道画不了的画面，改投另一个出图后端</div></div>
+            <button class="btn sm" id="btn-nsfw-test">测试连接</button>
+          </div>
+          <div class="card-body">
+            <div class="switch-row">
+              <div class="sw" id="sw-nsfw_enabled" data-key="nsfw_enabled"></div>
+              <div class="sr-text">
+                <div class="sr-lab">启用分流通道</div>
+                <div class="sr-hint">
+                  关闭时下面这些设置完全不参与，每一次出图都走主通道 —— 与没装这个功能一模一样。
+                </div>
+              </div>
+            </div>
+
+            <div id="nsfw-fields">
+              <div class="notice" style="margin-top:14px">
+                <b>它解决什么</b><br>
+                主通道（例如经 V.Adapter 走聊天画图模型）受平台内容策略限制，某些画面提交上去只会失败，
+                白等几十秒还耗掉一次额度。这里填一个<b>自己有账号的 NovelAI 协议服务</b>，
+                这类画面就改投过去；其余画面仍然走主通道，一个字节都不多发。
+              </div>
+              <div class="notice" style="margin-top:14px">
+                <b>与「正文直出」的配合</b><br>
+                正文直出模式送的是自然语言，而分流通道（真 NAI / 网关）只吃标签 ——
+                直接把散文当标签喂过去画不出来。因此正文命中分流条件时，
+                <b>仅这一张</b>会自动临时调用分析模型（默认就是酒馆主 API）把正文翻成
+                <span class="mono">desc + tags</span>，再走分流通道送标签；
+                普通画面仍零分析直出。想让这一路用更擅长写标签的模型，
+                在「上下文出图 → 分析模型」卡片选「自定义一个模型」。
+              </div>
+
+              <label class="field" style="margin-top:14px">
+                <span class="lab">服务地址</span>
+                <input type="text" id="f-nsfw_base_url" placeholder="https://api.novelai.net　或　某个 NAI 网关地址">
+                <span class="hint">
+                  必须是 <b>NovelAI 协议</b>的服务（提供 <span class="mono">/ai/generate-image</span>）。
+                  分流画面不会回退到 V.Adapter —— 那正是本次要绕开的上游。
+                </span>
+              </label>
+              <label class="field">
+                <span class="lab">API Key</span>
+                <span class="secret-wrap">
+                  <input type="password" id="f-nsfw_api_key" autocomplete="off" placeholder="该服务的密钥">
+                  <button type="button" class="secret-toggle" data-secret="f-nsfw_api_key" aria-label="显示或隐藏">显示</button>
+                </span>
+              </label>
+              <label class="field">
+                <span class="lab">模型名</span>
+                <input type="text" id="f-nsfw_model" placeholder="如 nai-diffusion-4-5-full">
+                <span class="hint">无默认值，按该服务的要求填写。</span>
+              </label>
+              <div class="grid c2">
+                <label class="field" style="margin:0">
+                  <span class="lab">上游类型</span>
+                  <select id="f-nsfw_upstream_type">
+                    <option value="nai">官方 NovelAI · 吃标签串（含 NAI 网关 / 第三方中转）</option>
+                    <option value="adapter">适配服务 · 吃自然语言</option>
+                    <option value="auto">自动判断（按地址猜）</option>
+                  </select>
+                </label>
+                <label class="field" style="margin:0">
+                  <span class="lab">提示词形态</span>
+                  <select id="f-nsfw_prompt_format">
+                    <option value="tags">tags — 送 Danbooru 标签（NAI 系默认）</option>
+                    <option value="description">description — 送自然语言描述</option>
+                    <option value="both">both — 两段合并送出</option>
+                    <option value="auto">auto — 按地址与上游类型判断</option>
+                  </select>
+                </label>
+              </div>
+              <label class="field">
+                <span class="lab">附加提示词（分流画面专用）</span>
+                <textarea id="f-nsfw_prefix" rows="3" placeholder="留空 = 不加。填在这里的内容会拼到分流画面的提示词最前面"></textarea>
+                <span class="hint">
+                  与主通道的「生图破限词」是两件事：<b>破限词是为受限的上游准备的</b>，
+                  分流上游本身不设内容限制，把它拼过去只会污染画面，因此分流时不再套用。
+                  这里放该上游真正需要的固定内容 —— 质量标签、画风要求之类。
+                </span>
+                <span class="hint">
+                  <b>扩散模型靠具体标签作画</b>：只写 <span class="mono">nsfw</span>、
+                  <span class="mono">nude</span>、<span class="mono">sex</span> 这类泛化词通常画不出想要的东西，
+                  画面要落到准确的部位与动作标签上才站得住 —— 例如
+                  <span class="mono">kissing</span>、<span class="mono">handjob</span>、
+                  <span class="mono">fellatio</span>、<span class="mono">spread legs</span>、
+                  <span class="mono">breasts</span>、<span class="mono">nipples</span> 等，
+                  且须与剧情该时刻实际发生的内容一致。默认注入给剧情模型与分析模型的规则
+                  （「设置 → 提示词注入 → 当前规则」）已包含此要求；若你的剧情模型仍只写泛化词，
+                  把该规则复制进角色卡 / 世界书，或改用「上下文出图」的分析模型路线，插件无法替你补齐。
+                </span>
+              </label>
+              <label class="field">
+                <span class="lab">负面提示词</span>
+                <textarea id="f-nsfw_negative" rows="2" placeholder="留空 = 沿用主通道的负面提示词"></textarea>
+              </label>
+              <label class="field">
+                <span class="lab">分流判定词</span>
+                <textarea id="f-nsfw_words" rows="3" placeholder="留空 = 只用插件内置的分级词。用英文逗号分隔，可填中英文，例如：nsfw, topless, 泳装"></textarea>
+                <span class="hint">
+                  用画面提示词（自然语言描述 <b>与</b> 标签串，两段都算）去匹配这些词，命中任意一个就走分流通道。
+                  判定只在这一步做，<b>不改动提示词本身，也不额外发任何请求</b>。
+                  插件内置一组通用的内容分级词；想要更贴合自己的用法，在这里补词即可。
+                </span>
+              </label>
+            </div>
+            <div class="err" id="nsfw-test-err"></div>
           </div>
         </div>
 
@@ -799,6 +925,17 @@ input[type=number]{-moz-appearance:textfield}
               <div class="sr-text">
                 <div class="sr-lab">正文里剔除 tag</div>
                 <div class="sr-hint">插图只走显示层，不进入 AI 上下文、不占用 Token。关闭后 AI 会看到自己输出的 tag。</div>
+              </div>
+            </div>
+            <div class="switch-row">
+              <div class="sw" id="sw-marker_redistribute" data-key="marker_redistribute"></div>
+              <div class="sr-text">
+                <div class="sr-lab">标记扎堆在末尾时自动摊开</div>
+                <div class="sr-hint">
+                  模型常把 <span class="mono">[ILLUST: …]</span> 全部写在回复最后一段，插图于是变成「附件」而不是「配图」。
+                  开启后，插件认出这种形态会按段落把标记重新摊开 —— <b>正文一个字不改</b>，只改插图插在哪一段下面。
+                  标记本来就分散在正文中的，不会有任何动作。
+                </div>
               </div>
             </div>
             <label class="field" style="margin-top:14px">
@@ -1021,9 +1158,9 @@ function toggleSidebar(open) {
 $('btn-menu').onclick = () => toggleSidebar(true);
 
 /* ── 设置界面 ── */
-const TEXT_KEYS = ['base_url', 'api_key', 'upstream_type', 'model', 'negative', 'prompt_format', 'exclude_types', 'inject_position', 'ctx_mode', 'ctx_direct_guide', 'ctx_direct_place', 'ctx_source', 'ctx_url', 'ctx_key', 'ctx_model', 'ctx_style', 'ctx_quality', 'ctx_negative', 'jb_llm', 'jb_image', 'active_artist', 'sign_mode', 'exclusive_salt'];
+const TEXT_KEYS = ['base_url', 'api_key', 'upstream_type', 'model', 'negative', 'prompt_format', 'exclude_types', 'inject_position', 'ctx_mode', 'ctx_direct_guide', 'ctx_direct_place', 'ctx_source', 'ctx_url', 'ctx_key', 'ctx_model', 'ctx_style', 'ctx_quality', 'ctx_negative', 'jb_llm', 'jb_image', 'active_artist', 'sign_mode', 'exclusive_salt', 'nsfw_base_url', 'nsfw_api_key', 'nsfw_model', 'nsfw_upstream_type', 'nsfw_prompt_format', 'nsfw_negative', 'nsfw_words', 'nsfw_prefix'];
 const NUM_KEYS = ['width', 'height', 'steps', 'scale', 'max_per_round', 'timeout_sec', 'interval_ms', 'inject_depth', 'ctx_timeout_sec'];
-const BOOL_KEYS = ['enabled', 'swipe_regenerate', 'strip_marker', 'inject_prompt', 'debug', 'ctx_enabled', 'parallel'];
+const BOOL_KEYS = ['enabled', 'swipe_regenerate', 'strip_marker', 'inject_prompt', 'debug', 'ctx_enabled', 'parallel', 'marker_redistribute', 'nsfw_enabled'];
 
 function fillForm(s) {
   SETTINGS = s;
@@ -1036,6 +1173,14 @@ function fillForm(s) {
   renderArtistRows(s.artist_presets);
   syncCtxSourceUI();
   syncCtxModeUI();
+  syncNsfwUI();
+}
+
+// 分流通道关闭时把整块字段收起来：留着会让人以为不填就跑不起来。
+function syncNsfwUI() {
+  const sw = $('sw-nsfw_enabled');
+  const box = $('nsfw-fields');
+  if (box) box.style.display = (sw && sw.classList.contains('on')) ? '' : 'none';
 }
 
 // 选「正文原样直出」时整张分析模型卡片都不参与，直接收起来 ——
@@ -1183,9 +1328,23 @@ BOOL_KEYS.forEach(k => {
     if (!READY) return;
     const next = !el.classList.contains('on');
     el.classList.toggle('on', next);           // 先反馈，失败时回滚
+    if (k === 'nsfw_enabled') syncNsfwUI();
     commit({ [k]: next }, k === 'enabled' ? '总开关' : '设置').then(ok => {
       if (!ok) el.classList.toggle('on', !next);
     });
+  };
+});
+
+/* ── 密钥框：默认隐藏，点「显示」才露出明文 ──
+   只切换 input 的 type，value 不受影响，因此与上面的通用保存逻辑完全兼容。 */
+document.querySelectorAll('.secret-toggle').forEach(btn => {
+  btn.onclick = () => {
+    const input = document.getElementById(btn.dataset.secret || '');
+    if (!input) return;
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    btn.textContent = show ? '隐藏' : '显示';
+    btn.setAttribute('aria-pressed', show ? 'true' : 'false');
   };
 });
 
@@ -1407,6 +1566,26 @@ $('btn-test').onclick = async () => {
     $('test-err').textContent = (r.error || '未知错误') +
       '　—　注意：部分 NAI 网关只放行出图接口，订阅端点被屏蔽；此处失败不代表服务不可用，请以实际能否出图为准。';
     toast('测试连接失败', 'bad');
+  }
+};
+
+$('btn-nsfw-test').onclick = async () => {
+  const btn = $('btn-nsfw-test');
+  btn.disabled = true;
+  $('nsfw-test-err').textContent = '正在连接…';
+  // 表单里可能还没保存，把当前值一起送过去，测的就是眼前填的这一份。
+  const r = await call('nsfw.test', {
+    base_url: $('f-nsfw_base_url').value,
+    api_key: $('f-nsfw_api_key').value,
+  });
+  btn.disabled = false;
+  if (r.ok) {
+    $('nsfw-test-err').textContent = '';
+    toast('分流通道连接正常：' + (r.data && r.data.message ? r.data.message : ''));
+  } else {
+    $('nsfw-test-err').textContent = (r.error || '未知错误') +
+      '　—　注意：部分 NAI 网关只放行出图接口，订阅端点被屏蔽；此处失败不代表服务不可用，请以实际能否出图为准。';
+    toast('分流通道测试失败', 'bad');
   }
 };
 

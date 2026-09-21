@@ -18,7 +18,7 @@ import {
     initSettings, settingsGet, applyPatch, isTypeExcluded, defaultSettings, recordHistory, clearHistory,
     saveArtistPresets,
 } from './lib/settings.js';
-import { findMarkers, hasMarkers, stripMarkers, buildDisplayText, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream } from './lib/marker.js';
+import { findMarkers, hasMarkers, stripMarkers, buildDisplayText, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream, redistributeMarkers } from './lib/marker.js';
 import { generateIllustration, testConnection } from './lib/nai-api.js';
 import {
     applyMarkers, resolveCtxSource, applyProseMarker, buildDirectProse, directAppliesTo, pickProseAnchor,
@@ -26,10 +26,11 @@ import {
 import { artistAppliesTo, artistPromptFor, withArtistPrompt } from './lib/artist.js';
 import { analyzeContext, testAnalyzeModel } from './lib/llm-api.js';
 import { analyzeViaMainApi, describeMainApi } from './lib/st-llm.js';
+import { detectNsfw } from './lib/nsfw.js';
 import { showProgress, updateProgress, finishProgress, hideProgress, setCancelHandler } from './lib/progress.js';
 
 export const MODULE_NAME = 'v_canvas';
-const VERSION = '0.1.3';
+const VERSION = '0.1.4';
 
 // system prompt 注入用的键名（同一键重复写入会覆盖，不会累积）。
 const PROMPT_KEY = 'v_canvas_rule';
@@ -45,10 +46,11 @@ function ruleTemplate(n) {
         + `1. 两段都必须填写，以 | 分隔，不得省略其中任一段。\n`
         + `2. 描述段用自然语言书写，须覆盖角色外貌特征、服装与道具、动作姿态、场景环境、构图与镜头、画风。\n`
         + `3. 标签段用英文 Danbooru Tag，以英文逗号分隔，按「主体、外观、服装、动作、场景、风格」的顺序排列。\n`
-        + `4. 单个标记须自足：应包含该画面完整的主角特征与场景信息，不依赖其他标记补全。\n`
-        + `5. 一轮输出多个标记时，各标记须针对不同的画面时刻，并分布在正文的不同位置（例如中段与末段），不得集中在一处，也不得重复描述同一画面。\n`
-        + `6. 画面构思与剧情正文在同一次生成中一并完成，无需等待额外步骤。\n`
-        + `7. 标记写在正文叙事段落的正下方，不要写在状态栏、思考块、表格等结构化区块内部；若正文被包裹在某个标签中（如 <story_scene>），标记写在标签内的对应段落下方。\n`
+        + `4. 动作与身体部位必须写具体：把画面中实际发生的动作、涉及的身体部位与接触关系，逐一落成准确的 Danbooru 标签（如 kissing、hugging、groping、handjob、fellatio、cunnilingus、spread legs、breasts、nipples 等），与剧情该时刻实际发生的内容一一对应；不得用 nsfw、nude、sex 这类只表示内容分级的泛化词代替具体画面，泛化词最多只能作附加说明。\n`
+        + `5. 单个标记须自足：应包含该画面完整的主角特征与场景信息，不依赖其他标记补全。\n`
+        + `6. 一轮输出多个标记时，各标记须针对不同的画面时刻，并分布在正文的不同位置（例如中段与末段），不得集中在一处，也不得重复描述同一画面。\n`
+        + `7. 画面构思与剧情正文在同一次生成中一并完成，无需等待额外步骤。\n`
+        + `8. 标记写在正文叙事段落的正下方，不要写在状态栏、思考块、表格等结构化区块内部；若正文被包裹在某个标签中（如 <story_scene>），标记写在标签内的对应段落下方。\n`
         + `单次回复最多输出 ${n} 个标记，每个标记对应一张插画，分别插在各自段落正下方。`;
 }
 
@@ -377,8 +379,43 @@ async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
     });
     if (!prose.trim()) { finishProgress('正文为空，跳过', false); return; }
 
-    // 落点：不经分析模型就没有 anchor，用零成本启发式挑一个（挑不出来则为 -1 → 挂末尾）。
+    // ── 直出命中分流条件：临时转分析模型 ──
+    // 直出送的是自然语言正文，而分流通道（真 NAI / 网关）按 Danbooru 标签训练、只吃标签。
+    // 直接把散文当标签喂过去等于喂噪料，必然画不出来（这是直出 + 分流的原有死结）。
+    // 因此命中时**只这一张**改走「分析模型转提示词」：让分析模型把正文翻译成 desc+tags，
+    // 再由 drawMarkers 用 forceDivert 强制走分流通道送标签。普通画面不受影响，仍零分析直出。
     const body = stripMarkers(String(msg.mes ?? ''));
+    const needDivert = cfg.nsfw_enabled && !!cfg.nsfw_base_url
+        && detectNsfw(body, cfg.nsfw_words);
+    if (needDivert) {
+        const kind = ctxAnalyzer(cfg);
+        if (!kind) {
+            const why = '正文命中分流条件，但「上下文出图」选了自定义分析模型且地址/模型名未填，'
+                + '无法把正文转成标签喂给分流通道。请填好分析模型配置，或把「用哪个模型来读」切回「跟随酒馆主 API」。';
+            warn(`${tag} ${why}`);
+            finishProgress(why, true);
+            return;
+        }
+        showProgress('正在分析正文…（命中分流条件，转分析模型出标签）');
+        log(`${tag} 正文命中分流条件，临时转分析模型（${analyzerLabel(cfg, kind)}）生成标签后走分流通道`);
+        const items = await runCtxAnalyzer(kind, cfg, {
+            reply: body,
+            context: collectContext(ctx.chat, messageId),
+            work: workLabel(ctx),
+            max: 1,
+            signal,
+        });
+        if (isAborted(signal)) { finishProgress('已终止', false); return; }
+        if (!items.length) {
+            log(`${tag} 命中分流条件，但分析模型未给出可出图画面`);
+            finishProgress('命中分流条件，但分析模型没有返回可出图的画面', true);
+            return;
+        }
+        await runIllustration(ctx, messageId, msg, items.slice(0, 1), signal, { forceDivert: true });
+        return;
+    }
+
+    // 落点：不经分析模型就没有 anchor，用零成本启发式挑一个（挑不出来则为 -1 → 挂末尾）。
     const at = cfg.ctx_direct_place === 'end' ? -1 : pickProseAnchor(body);
     log(`${tag} 正文 ${[...prose].length} 字直送生图上游（不经分析模型）；落点 ${at < 0 ? '末尾' : at}`);
 
@@ -413,7 +450,7 @@ async function runIllustration(ctx, messageId, msg, items, signal, opt = {}) {
     const promptMode = opt.direct
         ? 'description'
         : resolvePromptMode(cfg.prompt_format, cfg.base_url, cfg.upstream_type);
-    const { ok, errors } = await drawMarkers(ctx, messageId, msg, st, markers, cfg, signal, promptMode);
+    const { ok, errors } = await drawMarkers(ctx, messageId, msg, st, markers, cfg, signal, promptMode, !!opt.forceDivert);
 
     if (isAborted(signal)) {
         finishProgress('已终止', false);
@@ -468,7 +505,19 @@ async function processMessage(messageId, type, msg) {
     // 状态：src = 含标记的完整原文（显示与重试的唯一依据），urls 与标记一一对应。
     // continue / append 时 mes = 已剔除标记的旧文 + 新文，这里把原文拼回去再数标记。
     const st0 = msg.extra?.illust;
-    const eff = effectiveSource(mes, st0);
+    let eff = effectiveSource(mes, st0);
+
+    // 落点矫正：模型把标记全甩在回复末尾时，按段落把标记摊开。
+    // 只在「首次处理 / 正文被整体换掉」时做 —— 续写时 src 是上一轮加工过的，
+    // 再摊一次会让已出图的标记与 urls 的下标对应关系错位。
+    if (s().marker_redistribute && (eff.mode === 'new' || eff.mode === 'reset')) {
+        const moved = redistributeMarkers(eff.src);
+        if (moved) {
+            log(`${tag} 标记扎堆在末尾，已按段落重分布`);
+            eff = { ...eff, src: moved };
+        }
+    }
+
     const markers = findMarkers(eff.src);
     if (!markers.length) return; // 静默跳过，不打扰用户
     log(`${tag} 命中 ${markers.length} 个标记，source mode=${eff.mode}`);
@@ -576,7 +625,7 @@ function applyDisplay(ctx, messageId, msg, st) {
     }
     try {
         ctx.updateMessageBlock(messageId, { ...msg }); // 只重渲染这一条，不会再触发事件
-        hardenChatIllustrationImages(messageId);
+        scheduleHarden(messageId);
     } catch (err) {
         warn('刷新消息 DOM 失败:', err);
     }
@@ -597,7 +646,7 @@ function applyDisplay(ctx, messageId, msg, st) {
  *
  * @returns {Promise<{ok:number, errors:string[]}>}
  */
-async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMode) {
+async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMode, forceDivert = false) {
     const total = batch.length;
     let ok = 0;
     let done = 0;
@@ -621,14 +670,50 @@ async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMo
 
     const runOne = async (m) => {
         try {
+            // ── 通道选择 ──
+            // 主通道（V.Adapter / 聊天画图模型）有平台内容策略，某些画面提交上去只会失败。
+            // 命中分流条件时改投第二套后端；未命中则与主通道完全一致，行为不变。
+            //
+            // forceDivert：直出模式命中 NSFW 时由 runDirectPass 提前判定并转分析，
+            // 已确定必须走分流通道，不再重复做字符串判定（转出来的标签未必含内置分级词）。
+            // 未强制时判定用标记的两段原文，而不是按形态选出的那一段：
+            // 形态在选通道之后才确定，先选段会漏掉另一半里的线索。
+            const diverted = forceDivert
+                || (cfg.nsfw_enabled && !!cfg.nsfw_base_url
+                    && detectNsfw(`${m.desc ?? ''} ${m.tags ?? ''}`, cfg.nsfw_words));
+            const route = diverted
+                ? {
+                    baseUrl: cfg.nsfw_base_url,
+                    apiKey: cfg.nsfw_api_key,
+                    model: cfg.nsfw_model,
+                    // 分流通道一般是官方 NAI / 其中转，按标签串送；形态仍可由使用者覆盖。
+                    mode: resolvePromptMode(cfg.nsfw_prompt_format, cfg.nsfw_base_url, cfg.nsfw_upstream_type),
+                    negative: cfg.nsfw_negative || cfg.negative,
+                    bridge: false,
+                    // 分流上游本身不设内容限制，「生图破限词」对它没有意义 ——
+                    // 那是为受限上游准备的，拼过去只会污染画面。这里改用分流专用前缀。
+                    prefix: cfg.nsfw_prefix,
+                  }
+                : {
+                    baseUrl: cfg.base_url,
+                    apiKey: cfg.api_key,
+                    model: cfg.model,
+                    mode: promptMode,
+                    negative: cfg.negative,
+                    bridge: true,
+                    prefix: cfg.jb_image,
+                  };
+            if (diverted) log(`#${messageId} 第 ${m.index + 1} 张命中分流条件，改走分流通道（${route.mode}）`);
+
+            const sendPrompt = selectPrompt(m, route.mode);
             const gen = await generateIllustration({
-                baseUrl: cfg.base_url,
-                apiKey: cfg.api_key,
-                model: cfg.model,
+                baseUrl: route.baseUrl,
+                apiKey: route.apiKey,
+                model: route.model,
                 // 顺序：破限词 → 画师串 → 画面 tag。破限词要在最前（它是给上游看的提示前缀），
                 // 画师串紧跟其后（画风基调要先于画面内容定下，NAI 对靠前 tag 权重更高）。
-                prompt: buildUpstreamPrompt(withArtistPrompt(selectPrompt(m, promptMode), artistStr, promptMode), cfg.jb_image),
-                negative: cfg.negative,
+                prompt: buildUpstreamPrompt(withArtistPrompt(sendPrompt, artistStr, route.mode), route.prefix),
+                negative: route.negative,
                 width: cfg.width,
                 height: cfg.height,
                 steps: cfg.steps,
@@ -638,6 +723,8 @@ async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMo
                 // V站 专属密钥签名（默认关闭；仅 sign_mode 开启且密钥为 vcs_ 时才附加请求头）
                 salt: cfg.exclusive_salt,
                 signMode: cfg.sign_mode,
+                // 分流通道不允许回退到页面桥：桥的另一端就是这次要绕开的主通道上游。
+                allowBridge: route.bridge,
             });
 
             const subFolder = ctx.name2 || '';
@@ -652,7 +739,7 @@ async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMo
             // 写入生成记录：与当前聊天解耦，切聊天后仍可查阅
             recordHistory({
                 url,
-                prompt: selectPrompt(m, promptMode),
+                prompt: sendPrompt,
                 name: subFolder,
                 mid: messageId,
                 idx: m.index,
@@ -815,7 +902,17 @@ function hardenChatIllustrationImages(messageId) {
         else collect(chat[messageId]);
         if (!urls.size) return;
 
+        // 三种写法都要认：
+        //   原始 URL（含空格、括号等字符）
+        //   解码后 —— DOM 里拿到的是浏览器归一化过的形式
+        //   编码后 —— display_text 里存的是 encodeMdUrl() 的产物（空格→%20、括号→%28）
+        // 只比对其中一种时，角色名或文件名带空格 / 括号就会漏判，
+        // 表现为「同一张图面板里正常、正文里裂」。
         const norm = (u) => { try { return decodeURIComponent(String(u)); } catch { return String(u); } };
+        const enc = (u) => { try { return encodeURI(String(u)); } catch { return String(u); } };
+        const keys = new Set();
+        for (const u of urls) { keys.add(u); keys.add(norm(u)); keys.add(enc(u)); }
+
         const roots = messageId === undefined
             ? document.querySelectorAll('.mes_text')
             : document.querySelectorAll(`.mes[mesid="${messageId}"] .mes_text`);
@@ -823,8 +920,10 @@ function hardenChatIllustrationImages(messageId) {
             root.querySelectorAll('img').forEach((im) => {
                 const src = im.getAttribute('src') || '';
                 if (!/^https?:/i.test(src)) return;                          // 只处理远程图
-                if (!urls.has(src) && !urls.has(norm(src))) return;          // 只处理本插件的插图
-                if (im.getAttribute('referrerpolicy') === 'no-referrer') return;
+                if (!keys.has(src) && !keys.has(norm(src)) && !keys.has(enc(src))) return;
+                // 已按正确策略发过、且确实加载成功的，不再动
+                const already = im.getAttribute('referrerpolicy') === 'no-referrer';
+                if (already && !(im.complete && im.naturalWidth === 0)) return;
                 im.setAttribute('referrerpolicy', 'no-referrer');
                 im.src = src;                                                // 以新策略重新发起请求
             });
@@ -834,9 +933,28 @@ function hardenChatIllustrationImages(messageId) {
     }
 }
 
+// 重渲染未必同步完成：updateMessageBlock 之后立刻扫描，那些 <img> 可能还没进 DOM，
+// 于是什么都没补上 —— 图仍然带着酒馆的 Referer 去请求，被 CDN 403。
+// 因此首帧之后按阶梯再扫几次；次数有限，不会常驻。
+const HARDEN_RETRY_DELAYS = [0, 80, 300, 800];
+
+function scheduleHarden(messageId) {
+    for (const d of HARDEN_RETRY_DELAYS) {
+        if (d === 0) hardenChatIllustrationImages(messageId);
+        else setTimeout(() => hardenChatIllustrationImages(messageId), d);
+    }
+}
+
 function rehydrateOne(messageId, msg) {
     const st = msg?.extra?.illust;
     if (!st || !Array.isArray(st.urls) || !st.src) return false;
+    // 落点矫正对旧消息同样适用：只挪动标记在原文中的位置，标记的先后顺序不变，
+    // 因此与 urls 的下标对应关系完好，已经画好的图不会被重画或错位。
+    // 没有这一句，开关打开后旧消息的插图仍然停在末尾，看起来像"开了没用"。
+    if (s().marker_redistribute) {
+        const moved = redistributeMarkers(st.src);
+        if (moved) st.src = moved;
+    }
     // drop：切聊天重载时若某张尚未出图，其提示词不应以纯文本留在正文里
     const dt = buildDisplayText(st.src, st.urls, 'Illustration', 'drop');
     const want = dt ?? undefined;
@@ -844,7 +962,7 @@ function rehydrateOne(messageId, msg) {
     if (dt) msg.extra.display_text = dt; else delete msg.extra.display_text;
     try {
         getContext().updateMessageBlock(messageId, { ...msg });
-        hardenChatIllustrationImages(messageId);
+        scheduleHarden(messageId);
     } catch (err) {
         warn('重建显示失败:', err);
     }
@@ -878,7 +996,7 @@ async function rehydrateAll() {
     }
     // 切聊天 / 加载更多时整条过一遍：display_text 未变化的消息不会走 rehydrateOne，
     // 但里面的远程插图仍然需要补 referrerpolicy（首次请求可能已按默认策略 403）。
-    hardenChatIllustrationImages();
+    scheduleHarden();
 }
 
 // ── 原地占位符（只改 DOM，绝不写进聊天记录）──
@@ -1216,6 +1334,19 @@ function installBridge() {
                     const c = s();
                     const message = await testConnection({
                         baseUrl: c.base_url, apiKey: c.api_key,
+                        salt: c.exclusive_salt, signMode: c.sign_mode,
+                    });
+                    return { ok: true, data: { message } };
+                }
+
+                // 分流通道连通性：面板可能还没保存就先测，因此允许它把表单里的值传进来。
+                case 'nsfw.test': {
+                    const c = s();
+                    const baseUrl = String(payload?.base_url ?? c.nsfw_base_url ?? '').trim();
+                    const apiKey = String(payload?.api_key ?? c.nsfw_api_key ?? '');
+                    if (!baseUrl) return { ok: false, error: '请先填写分流通道的服务地址' };
+                    const message = await testConnection({
+                        baseUrl, apiKey,
                         salt: c.exclusive_salt, signMode: c.sign_mode,
                     });
                     return { ok: true, data: { message } };
