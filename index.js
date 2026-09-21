@@ -21,7 +21,8 @@ import {
 import { findMarkers, hasMarkers, stripMarkers, buildDisplayText, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream, redistributeMarkers } from './lib/marker.js';
 import { generateIllustration, testConnection } from './lib/nai-api.js';
 import {
-    applyMarkers, resolveCtxSource, applyProseMarker, buildDirectProse, directAppliesTo, pickProseAnchor,
+    applyMarkers, resolveCtxSource, applyProseMarker, applyProseMarkers, buildDirectProse, directAppliesTo,
+    pickProseAnchor, splitProseChunks,
 } from './lib/analysis.js';
 import { artistAppliesTo, artistPromptFor, withArtistPrompt } from './lib/artist.js';
 import { analyzeContext, testAnalyzeModel } from './lib/llm-api.js';
@@ -369,25 +370,16 @@ async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
         return;
     }
 
-    // 作品信息（角色卡名等）不是对话上下文，不影响「只发最新一条正文」这条约束，
-    // 但它是画风一致性的主要依据 —— 少了它，同一段剧情每次画出来可能不是一个调。
-    const prose = buildDirectProse(stripMarkers(String(msg.mes ?? '')), {
-        guide: cfg.ctx_direct_guide,
-        work: workLabel(ctx),
-        style: cfg.ctx_style,
-        quality: cfg.ctx_quality,
-        negative: cfg.ctx_negative,
-    });
-    if (!prose.trim()) { finishProgress('正文为空，跳过', false); return; }
-
-    // ── 直出命中分流条件：临时转分析模型 ──
-    // 直出送的是自然语言正文，而分流通道（真 NAI / 网关）按 Danbooru 标签训练、只吃标签。
-    // 直接把散文当标签喂过去等于喂噪料，必然画不出来（这是直出 + 分流的原有死结）。
-    // 因此命中时**只这一张**改走「分析模型转提示词」：让分析模型把正文翻译成 desc+tags，
-    // 再由 drawMarkers 用 forceDivert 强制走分流通道送标签。普通画面不受影响，仍零分析直出。
     const body = stripMarkers(String(msg.mes ?? ''));
     const needDivert = cfg.nsfw_enabled && !!cfg.nsfw_base_url
         && detectNsfw(body, cfg.nsfw_words);
+
+    // ── 直出命中分流条件：临时转分析模型，按分流通道自己的张数与组合出图 ──
+    // 直出送的是自然语言正文，而分流通道（真 NAI / 网关）按 Danbooru 标签训练、只吃标签。
+    // 直接把散文当标签喂过去等于喂噪料，必然画不出来（这是直出 + 分流的原有死结）。
+    // 因此命中时改走「分析模型转提示词」：分析模型按 nsfw_max 张数与 nsfw_mix 组合
+    // （1 日常 + 1 NSFW / 全 NSFW）产出 desc+tags，再由 drawMarkers 用 forceDivert
+    // 强制走分流通道送标签。普通画面不受影响，仍零分析直出。
     if (needDivert) {
         const kind = ctxAnalyzer(cfg);
         if (!kind) {
@@ -397,16 +389,19 @@ async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
             finishProgress(why, true);
             return;
         }
-        showProgress('正在分析正文…（命中分流条件，转分析模型出标签）');
-        log(`${tag} 正文命中分流条件，临时转分析模型（${analyzerLabel(cfg, kind)}）生成标签后走分流通道`);
+        const nsfwN = Math.min(6, Math.max(1, cfg.nsfw_max | 0));
+        showProgress(`正在分析正文…（命中分流条件，转分析模型出 ${nsfwN} 张标签）`);
+        log(`${tag} 正文命中分流条件，临时转分析模型（${analyzerLabel(cfg, kind)}）生成 ${nsfwN} 张标签后走分流通道`);
         // 命中 NSFW 分流：交给分析模型语义判断「哪一刻才是真正的成人画面」（前/中/后段都可能），
         // 而不是用关键词硬挑段 —— 关键词只负责决定「要不要分流」，选哪一刻由分析模型读正文判断。
         const items = await runCtxAnalyzer(kind, cfg, {
             reply: body,
             context: collectContext(ctx.chat, messageId),
             work: workLabel(ctx),
-            max: 1,
+            max: nsfwN,
             nsfw: true,
+            nsfwMix: cfg.nsfw_mix,
+            nsfwDailyPlace: cfg.nsfw_daily_place,
             signal,
         });
         if (isAborted(signal)) { finishProgress('已终止', false); return; }
@@ -415,29 +410,64 @@ async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
             finishProgress('命中分流条件，但分析模型没有返回可出图的画面', true);
             return;
         }
-        await runIllustration(ctx, messageId, msg, items.slice(0, 1), signal, { forceDivert: true });
+        await runIllustration(ctx, messageId, msg, items.slice(0, nsfwN), signal, { forceDivert: true });
         return;
     }
 
-    // 落点：不经分析模型就没有 anchor，用零成本启发式挑一个（挑不出来则为 -1 → 挂末尾）。
-    const at = cfg.ctx_direct_place === 'end' ? -1 : pickProseAnchor(body);
-    log(`${tag} 正文 ${[...prose].length} 字直送生图上游（不经分析模型）；落点 ${at < 0 ? '末尾' : at}`);
+    // ── 未命中分流：正文直出（文 → 图），支持按「每轮上限」出多张 ──
+    // 多张的实现是「开多个窗口」：把正文按段切成若干份，每张独立送一次上游，
+    // 第 1 张画前段、第 2 张画中段…… 每张内容天然不同，而不是同一段重复画 N 遍。
+    const maxN = Math.min(6, Math.max(1, cfg.max_per_round | 0));
+    const chunks = splitProseChunks(body, maxN);
+    if (!chunks.length) { finishProgress('正文为空，跳过', false); return; }
 
-    showProgress('正在绘制插画 … 约 30~60 秒');
-    // 直出固定一张：同一个正文让模型画 N 遍只会得到 N 张几乎一样的图，
-    // 而分析模型那档是因为做了分镜才可能出多张。
-    await runIllustration(ctx, messageId, msg, [{ desc: prose }], signal, { direct: true, at });
+    // 每份正文单独拼上内置作画指令与画风，落点取该份正文在原文中的位置。
+    const items = [];
+    let cursor = 0;
+    for (const chunk of chunks) {
+        const prose = buildDirectProse(chunk, {
+            guide: cfg.ctx_direct_guide,
+            work: workLabel(ctx),
+            style: cfg.ctx_style,
+            quality: cfg.ctx_quality,
+            negative: cfg.ctx_negative,
+        });
+        if (!prose.trim()) continue;
+        const at = body.indexOf(chunk, cursor);
+        items.push({ desc: prose, at: at >= 0 ? at + chunk.length : -1 });
+        cursor = at >= 0 ? at + chunk.length : cursor;
+    }
+    if (!items.length) { finishProgress('正文为空，跳过', false); return; }
+
+    log(`${tag} 正文直出 ${items.length} 张（${[...body].length} 字，按段切分，每张独立送生图上游）`);
+    showProgress(`正在绘制插画 1/${items.length} … 约 30~60 秒/张，可以先聊别的`);
+
+    // 直出多张用 applyProseMarkers：每张插到对应段落下，而不是全部挂末尾。
+    // 单张时走 applyProseMarker（用启发式落点或末尾，行为与旧版一致）。
+    const src = items.length === 1
+        ? applyProseMarker(body, items[0].desc, cfg.ctx_direct_place === 'end' ? -1 : pickProseAnchor(body))
+        : applyProseMarkers(body, items);
+    await runIllustration(ctx, messageId, msg, items, signal, { direct: true, src });
 }
 
 // runIllustration 把画面列表转成标记后，复用既有的出图与就地替换链路。
+//
+// opt 支持：
+//   direct      直出：不经分析模型，标记由 prose 包成（不经过 anchor 定位）
+//   at          直出单张时的落点下标（-1 = 末尾）
+//   forceDivert 命中分流：强制走分流通道送标签
+//   src         外部已拼好带标记的正文（直出多张时由 applyProseMarkers 拼好），优先于 items 自行拼装
 async function runIllustration(ctx, messageId, msg, items, signal, opt = {}) {
     const cfg = s();
     const reply = String(msg.mes ?? '');
     // 直出不经过 anchor（没人决定插在哪一段下面），标记追加在整条回复末尾；
     // 其余路线由 applyMarkers 按 anchor 就地插入。
-    const src = opt.direct
-        ? applyProseMarker(reply, items[0]?.desc ?? '', opt.at ?? -1)
-        : applyMarkers(reply, items);
+    // 多张直出时 opt.src 由调用方（applyProseMarkers）拼好，这里直接采用。
+    const src = opt.src
+        ? opt.src
+        : (opt.direct
+            ? applyProseMarker(reply, items[0]?.desc ?? '', opt.at ?? -1)
+            : applyMarkers(reply, items));
     const markers = findMarkers(src);
     if (!markers.length) {
         log(`#${messageId} 标记组装后为空，跳过`);

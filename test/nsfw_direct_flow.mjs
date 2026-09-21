@@ -8,7 +8,7 @@
 
 import { detectNsfw, parseWords, buildWordList } from '../lib/nsfw.js';
 import { resolvePromptMode, selectPrompt } from '../lib/marker.js';
-import { buildAnalysisParts } from '../lib/analysis.js';
+import { buildAnalysisParts, splitProseChunks, applyProseMarkers } from '../lib/analysis.js';
 
 let pass = 0, fail = 0;
 function ok(name, cond, extra) {
@@ -115,6 +115,47 @@ ok('nsfw 指令拼进 user 消息：不预选任何段落', !nsfwParts.user.incl
 const plainParts = buildAnalysisParts(MIXED_BODY, '', 1, {});
 ok('无 nsfw 时 user 消息不含 NSFW 指令', !plainParts.user.includes('成人向（NSFW）'));
 ok('无 nsfw 时 user 消息不含 NSFW 指令（语义判断句）', !plainParts.user.includes('自行判断'));
+
+// ── 8. 混合模式（nsfw_mix = daily_nsfw / nsfw_only）──
+const mixDaily = buildAnalysisParts(MIXED_BODY, '', 2, { nsfw: true, nsfwMix: 'daily_nsfw' });
+ok('混合模式 daily_nsfw：要求 1 张日常 + 1 张成人', mixDaily.user.includes('1 张为日常画面') && mixDaily.user.includes('成人画面'), mixDaily.user.slice(0, 120));
+ok('混合模式 daily_nsfw：日常位置默认 auto（自行挑）', mixDaily.user.includes('由你自行挑一个非成人时刻'));
+const mixDailyFront = buildAnalysisParts(MIXED_BODY, '', 2, { nsfw: true, nsfwMix: 'daily_nsfw', nsfwDailyPlace: 'front' });
+ok('混合模式 daily_nsfw + front：日常取自正文前段', mixDailyFront.user.includes('取自正文前段'));
+const mixDailyEnd = buildAnalysisParts(MIXED_BODY, '', 2, { nsfw: true, nsfwMix: 'daily_nsfw', nsfwDailyPlace: 'end' });
+ok('混合模式 daily_nsfw + end：日常取自正文后段', mixDailyEnd.user.includes('取自正文后段'));
+const mixNsfwOnly = buildAnalysisParts(MIXED_BODY, '', 2, { nsfw: true, nsfwMix: 'nsfw_only' });
+ok('混合模式 nsfw_only：全部必须是成人画面', mixNsfwOnly.user.includes('全部必须是成人画面'));
+// daily_nsfw 但 nsfw_max=1 → 退化为只出 NSFW（走单张分支）
+const mixDailyOne = buildAnalysisParts(MIXED_BODY, '', 1, { nsfw: true, nsfwMix: 'daily_nsfw' });
+ok('daily_nsfw + 1 张：退化为单张 NSFW 指令', mixDailyOne.user.includes('真正发生亲密 / 成人行为的那一个时刻'));
+
+// ── 9. qwen 直出多张：按段切分（splitProseChunks）──
+const CHUNK_BODY = '第一段：咖啡馆闲聊。\n\n第二段：她解开了衣扣。\n\n第三段：夜色相拥而卧。\n\n第四段：清晨醒来。';
+const chunks2 = splitProseChunks(CHUNK_BODY, 2);
+ok('切分 2 份：得到 2 段', chunks2.length === 2, chunks2);
+ok('切分 2 份：第 1 份含前段内容', chunks2[0].includes('咖啡馆'));
+ok('切分 2 份：第 2 份含后段内容', chunks2[1].includes('清晨'));
+const chunks4 = splitProseChunks(CHUNK_BODY, 4);
+ok('切分 4 份（段落数=份数）：每段一份', chunks4.length === 4);
+const chunks6 = splitProseChunks(CHUNK_BODY, 6);
+ok('切分 6 份（段落数<份数）：按实际段数出', chunks6.length === 4);
+ok('切分空正文：返回空数组', splitProseChunks('', 2).length === 0);
+ok('切分单段正文：返回单段', splitProseChunks('只有一段。', 3).length === 1);
+
+// ── 10. 多张直出标记落位（applyProseMarkers）：每张插到对应段落下 ──
+const markItems = [
+    { prose: '画面甲', at: CHUNK_BODY.indexOf('第二段') },
+    { prose: '画面乙', at: CHUNK_BODY.indexOf('第三段') },
+];
+const placed = applyProseMarkers(CHUNK_BODY, markItems);
+ok('多标记落位：第一段后插入画面甲', placed.includes('咖啡馆闲聊。\n\n[ILLUST: 画面甲]'), placed);
+ok('多标记落位：第二段后插入画面乙', placed.includes('衣扣。\n\n[ILLUST: 画面乙]'), placed);
+ok('多标记落位：正文内容完整保留', placed.includes('清晨醒来'));
+const placedEmpty = applyProseMarkers(CHUNK_BODY, []);
+ok('多标记落位：无 items 原样返回', placedEmpty === CHUNK_BODY);
+const placedAtEnd = applyProseMarkers('只有一段。', [{ prose: '图', at: -1 }]);
+ok('多标记落位：at 越界挂末尾', placedAtEnd.endsWith('[ILLUST: 图]'), placedAtEnd);
 
 console.log(`\nRESULT: ${pass} passed / ${fail} failed`);
 process.exit(fail ? 1 : 0);
