@@ -89,6 +89,16 @@ ok('分析产物缺 tags 时回退 desc（防呆，不送空串）', fallback ==
 ok('自定义词表可扩展（加 topless 命中）', detectNsfw('她只穿着 topless 的短衣', 'topless') === true);
 ok('内置词 nsfw 命中', detectNsfw('this image is nsfw', '') === true);
 ok('词表解析支持中英文逗号分号', parseWords('a，b;c,d').join(',') === 'a,b,c,d');
+// 用户实测漏判的场景：正文里明显写了做爱/交配却没被识别
+ok('正文「做爱」命中（漏判修复）', detectNsfw('他们开始做爱，房间里只剩下喘息。', '') === true);
+ok('正文「交配」命中（漏判修复）', detectNsfw('如同野兽交配一般。', '') === true);
+ok('正文「性交」命中', detectNsfw('性交场面。', '') === true);
+ok('正文「脱衣」命中', detectNsfw('她缓缓脱衣。', '') === true);
+ok('正文「亲吻+胸部」命中', detectNsfw('他亲吻着她的胸部。', '') === true);
+ok('正文「handjob 标签」命中', detectNsfw('1girl, handjob, breasts', '') === true);
+ok('正文「spread legs 标签」命中', detectNsfw('spread legs, blush', '') === true);
+// 含蓄写法（无关键词）仍不命中 —— 这正是需要兜底重试的场景
+ok('含蓄写法不命中（触发兜底重试）', detectNsfw('两人在月色下相拥，气氛旖旎。', '') === false);
 
 // ── 6. 命中分流后的选图要求：交给分析模型语义判断，而不是关键词硬挑段 ──
 // 用户场景：正文前段聊日常、中段/后段才是真正的成人画面 —— 但位置不是固定的，

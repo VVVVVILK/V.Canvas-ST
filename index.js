@@ -322,13 +322,24 @@ async function runAnalyzePass(ctx, messageId, msg, cfg, signal, tag) {
     // 张数统一走「每轮上限」（与标记驱动路线同一个设置项），
     // 避免两套上限各说各话：在设置页改了却在上下文出图上不生效。
     const maxImages = Math.min(6, Math.max(1, cfg.max_per_round | 0));
-    showProgress(`正在分析正文…（约 10~30 秒，最多 ${maxImages} 张）`);
+    // NSFW 判定：正文命中分流条件时，本批画面强制走分流通道（真 NAI）。
+    // 分析模式此前没有这条判定 —— 分析模型写出的都是具体标签（kissing/handjob 等），
+    // 不在内置分级词表里，drawMarkers 按标签二次判定永远不命中 → 送主通道 qwen → 生成不了。
+    // 现在与直出模式对齐：关键词只决定「要不要分流」，选哪一刻由分析模型语义判断。
+    const nsfwEnabled = cfg.nsfw_enabled && !!cfg.nsfw_base_url;
+    const bodyNsfw = nsfwEnabled && detectNsfw(mes, cfg.nsfw_words);
+    const nsfwN = bodyNsfw ? Math.min(6, Math.max(1, cfg.nsfw_max | 0)) : maxImages;
+    if (bodyNsfw) log(`${tag} 正文命中 NSFW 分流，按分流通道出 ${nsfwN} 张`);
+    showProgress(`正在分析正文…（约 10~30 秒，最多 ${nsfwN} 张）`);
     log(`${tag} 送分析模型（${analyzerLabel(cfg, kind)}），正文 ${[...mes].length} 字`);
     const items = await runCtxAnalyzer(kind, cfg, {
         reply: mes,
         context: collectContext(ctx.chat, messageId),
         work: workLabel(ctx),
-        max: maxImages,
+        max: nsfwN,
+        nsfw: bodyNsfw,
+        nsfwMix: cfg.nsfw_mix,
+        nsfwDailyPlace: cfg.nsfw_daily_place,
         signal,
     });
     if (isAborted(signal)) { finishProgress('已终止', false); return; }
@@ -338,7 +349,7 @@ async function runAnalyzePass(ctx, messageId, msg, cfg, signal, tag) {
         return;
     }
     log(`${tag} 分析得到 ${items.length} 个画面`);
-    await runIllustration(ctx, messageId, msg, items, signal);
+    await runIllustration(ctx, messageId, msg, items, signal, { forceDivert: bodyNsfw });
 }
 
 // runDirectPass 路线 B：正文直出 —— 不调用分析模型，把整条 AI 正文原样交给生图模型。
@@ -371,8 +382,9 @@ async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
     }
 
     const body = stripMarkers(String(msg.mes ?? ''));
-    const needDivert = cfg.nsfw_enabled && !!cfg.nsfw_base_url
-        && detectNsfw(body, cfg.nsfw_words);
+    const nsfwEnabled = cfg.nsfw_enabled && !!cfg.nsfw_base_url;
+    // 直出判定用正文原文（stripMarkers 之后），命中即转分流。
+    const needDivert = nsfwEnabled && detectNsfw(body, cfg.nsfw_words);
 
     // ── 直出命中分流条件：临时转分析模型，按分流通道自己的张数与组合出图 ──
     // 直出送的是自然语言正文，而分流通道（真 NAI / 网关）按 Danbooru 标签训练、只吃标签。
@@ -708,63 +720,140 @@ async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMo
             // 主通道（V.Adapter / 聊天画图模型）有平台内容策略，某些画面提交上去只会失败。
             // 命中分流条件时改投第二套后端；未命中则与主通道完全一致，行为不变。
             //
-            // forceDivert：直出模式命中 NSFW 时由 runDirectPass 提前判定并转分析，
-            // 已确定必须走分流通道，不再重复做字符串判定（转出来的标签未必含内置分级词）。
-            // 未强制时判定用标记的两段原文，而不是按形态选出的那一段：
-            // 形态在选通道之后才确定，先选段会漏掉另一半里的线索。
+            // forceDivert：直出/分析模式命中 NSFW 时由 runDirectPass/runAnalyzePass 提前判定
+            // 并转分析，已确定必须走分流通道，不再重复做字符串判定。
+            //
+            // 未强制时判定两处，任一命中即分流：
+            //   a) 标记的两段原文（m.desc + m.tags）—— 形态在选通道之后才确定，先选段会漏另一半；
+            //   b) **整条消息正文**（msg.mes）—— 正文才是 NSFW 事实的源头。
+            //      标记是剧情模型写的转述，可能含蓄（正文写「做爱」，标记却写「两人缠绵」），
+            //      只判标记会漏 → 误送主通道 qwen（画不了 NSFW）→ 整轮报废。
+            const bodyForNsfw = stripMarkers(String(msg?.mes ?? ''));
             const diverted = forceDivert
                 || (cfg.nsfw_enabled && !!cfg.nsfw_base_url
-                    && detectNsfw(`${m.desc ?? ''} ${m.tags ?? ''}`, cfg.nsfw_words));
-            const route = diverted
-                ? {
-                    baseUrl: cfg.nsfw_base_url,
-                    apiKey: cfg.nsfw_api_key,
-                    model: cfg.nsfw_model,
-                    // 分流通道一般是官方 NAI / 其中转，按标签串送；形态仍可由使用者覆盖。
-                    mode: resolvePromptMode(cfg.nsfw_prompt_format, cfg.nsfw_base_url, cfg.nsfw_upstream_type),
-                    negative: cfg.nsfw_negative || cfg.negative,
-                    bridge: false,
-                    // 分流上游本身不设内容限制，「生图破限词」对它没有意义 ——
-                    // 那是为受限上游准备的，拼过去只会污染画面。这里改用分流专用前缀。
-                    prefix: cfg.nsfw_prefix,
-                  }
-                : {
-                    baseUrl: cfg.base_url,
-                    apiKey: cfg.api_key,
-                    model: cfg.model,
-                    mode: promptMode,
-                    negative: cfg.negative,
-                    bridge: true,
-                    prefix: cfg.jb_image,
-                  };
-            if (diverted) log(`#${messageId} 第 ${m.index + 1} 张命中分流条件，改走分流通道（${route.mode}）`);
+                    && (detectNsfw(`${m.desc ?? ''} ${m.tags ?? ''}`, cfg.nsfw_words)
+                        || (bodyForNsfw && detectNsfw(bodyForNsfw, cfg.nsfw_words))));
 
-            const sendPrompt = selectPrompt(m, route.mode);
-            const gen = await generateIllustration({
-                baseUrl: route.baseUrl,
-                apiKey: route.apiKey,
-                model: route.model,
-                // 顺序：破限词 → 画师串 → 画面 tag。破限词要在最前（它是给上游看的提示前缀），
-                // 画师串紧跟其后（画风基调要先于画面内容定下，NAI 对靠前 tag 权重更高）。
-                prompt: buildUpstreamPrompt(withArtistPrompt(sendPrompt, artistStr, route.mode), route.prefix),
-                negative: route.negative,
-                width: cfg.width,
-                height: cfg.height,
-                steps: cfg.steps,
-                scale: cfg.scale,
-                timeoutMs: cfg.timeout_sec * 1000,
-                signal,
-                // V站 专属密钥签名（默认关闭；仅 sign_mode 开启且密钥为 vcs_ 时才附加请求头）
-                salt: cfg.exclusive_salt,
-                signMode: cfg.sign_mode,
-                // 分流通道不允许回退到页面桥：桥的另一端就是这次要绕开的主通道上游。
-                allowBridge: route.bridge,
-            });
+            // 分流通道路由（真 NAI / 网关，吃标签串）。
+            const divertRoute = {
+                baseUrl: cfg.nsfw_base_url,
+                apiKey: cfg.nsfw_api_key,
+                model: cfg.nsfw_model,
+                mode: resolvePromptMode(cfg.nsfw_prompt_format, cfg.nsfw_base_url, cfg.nsfw_upstream_type),
+                negative: cfg.nsfw_negative || cfg.negative,
+                bridge: false,
+                // 分流上游本身不设内容限制，「生图破限词」对它没有意义 ——
+                // 那是为受限上游准备的，拼过去只会污染画面。这里改用分流专用前缀。
+                prefix: cfg.nsfw_prefix,
+                label: '分流',
+            };
+            // 主通道路由（V.Adapter / 聊天画图模型，吃自然语言或按形态送）。
+            const mainRoute = {
+                baseUrl: cfg.base_url,
+                apiKey: cfg.api_key,
+                model: cfg.model,
+                mode: promptMode,
+                negative: cfg.negative,
+                bridge: true,
+                prefix: cfg.jb_image,
+                label: '主通道',
+            };
+
+            // 一次出图尝试：选中某条路由并落盘。失败抛错，由上层决定是否换路重试。
+            const attempt = async (r, isDivert) => {
+                const sendPrompt = selectPrompt(m, r.mode);
+                if (isDivert) log(`#${messageId} 第 ${m.index + 1} 张命中分流条件，改走分流通道（${r.mode}）`);
+                const gen = await generateIllustration({
+                    baseUrl: r.baseUrl,
+                    apiKey: r.apiKey,
+                    model: r.model,
+                    prompt: buildUpstreamPrompt(withArtistPrompt(sendPrompt, artistStr, r.mode), r.prefix),
+                    negative: r.negative,
+                    width: cfg.width,
+                    height: cfg.height,
+                    steps: cfg.steps,
+                    scale: cfg.scale,
+                    timeoutMs: cfg.timeout_sec * 1000,
+                    signal,
+                    salt: cfg.exclusive_salt,
+                    signMode: cfg.sign_mode,
+                    allowBridge: r.bridge,
+                });
+                return { gen, sendPrompt };
+            };
+            // 用显式标签串走分流通道（直出散文转分析后的产物；不依赖标记的 tags 段）。
+            const attemptDivertWith = async (tags) => {
+                log(`#${messageId} 第 ${m.index + 1} 张转分流通道（分析模型产标签，${divertRoute.mode}）`);
+                const gen = await generateIllustration({
+                    baseUrl: divertRoute.baseUrl,
+                    apiKey: divertRoute.apiKey,
+                    model: divertRoute.model,
+                    prompt: buildUpstreamPrompt(withArtistPrompt(tags, artistStr, divertRoute.mode), divertRoute.prefix),
+                    negative: divertRoute.negative,
+                    width: cfg.width,
+                    height: cfg.height,
+                    steps: cfg.steps,
+                    scale: cfg.scale,
+                    timeoutMs: cfg.timeout_sec * 1000,
+                    signal,
+                    salt: cfg.exclusive_salt,
+                    signMode: cfg.sign_mode,
+                    allowBridge: divertRoute.bridge,
+                });
+                return { gen, sendPrompt: tags };
+            };
+
+            // 走哪条：已判定分流 → 直接分流；否则先主通道，失败且分流可用 → 自动转分流重试一次。
+            // 这是「判定漏了也能出图」的兜底：正文漏判走了 qwen、被拒后自动改用真 NAI 再画，
+            // 不再出现「插件用不了」。
+            const firstRoute = diverted ? divertRoute : mainRoute;
+            let result;
+            try {
+                result = await attempt(firstRoute, diverted);
+            } catch (err) {
+                if (isAborted(signal)) throw err;
+                // 主通道失败 → 若配置了分流通道，自动转分流重试同一张（不重复判词）。
+                if (!diverted && cfg.nsfw_enabled && !!cfg.nsfw_base_url) {
+                    const why = truncateText(err?.message ?? String(err), 200);
+                    // 直出散文标记没有 tags 段：直接把散文当标签送分流通道必然画不出来，
+                    // 必须先让分析模型把正文翻译成 desc+tags，再送标签。这跟 runDirectPass
+                    // 命中分流分支的处理一致 —— 否则 qwen 拒答后转 NAI 送散文，同样报废。
+                    let divertPrompt = null;
+                    if (!m.tags && bodyForNsfw) {
+                        const kind = ctxAnalyzer(cfg);
+                        if (kind) {
+                            warn(`#${messageId} 第 ${m.index + 1} 张主通道失败（${why}），转分析模型生成标签后走分流通道`);
+                            const translated = await runCtxAnalyzer(kind, cfg, {
+                                reply: bodyForNsfw,
+                                context: collectContext(ctx.chat, messageId),
+                                work: workLabel(ctx),
+                                max: 1,
+                                nsfw: true,
+                                nsfwMix: cfg.nsfw_mix,
+                                nsfwDailyPlace: cfg.nsfw_daily_place,
+                                signal,
+                            });
+                            if (isAborted(signal)) throw err;
+                            if (translated.length && translated[0].tags) {
+                                divertPrompt = translated[0].tags;
+                            }
+                        }
+                    }
+                    if (divertPrompt) {
+                        result = await attemptDivertWith(divertPrompt);
+                    } else {
+                        warn(`#${messageId} 第 ${m.index + 1} 张主通道失败（${why}），自动转分流通道重试`);
+                        result = await attempt(divertRoute, true);
+                    }
+                } else {
+                    throw err;
+                }
+            }
 
             const subFolder = ctx.name2 || '';
             const fileName = `illust_${Date.now()}_${m.index}`;
             // url 存在 = 上游远程链接降级结果（无本地字节），直接引用，不落盘
-            const url = gen.url ?? await saveBase64AsFile(gen.base64, subFolder, fileName, gen.extension);
+            const url = result.gen.url ?? await saveBase64AsFile(result.gen.base64, subFolder, fileName, result.gen.extension);
             st.urls[m.index] = url;
             ok++;
             done++;
@@ -773,7 +862,7 @@ async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMo
             // 写入生成记录：与当前聊天解耦，切聊天后仍可查阅
             recordHistory({
                 url,
-                prompt: sendPrompt,
+                prompt: result.sendPrompt,
                 name: subFolder,
                 mid: messageId,
                 idx: m.index,
