@@ -886,11 +886,13 @@ input[type=number]{-moz-appearance:textfield}
               <label class="field">
                 <span class="lab">主通道失败后的重试策略</span>
                 <select id="f-nsfw_retry">
+                  <option value="off">不自动转 — 主通道失败就失败，绝不碰 NAI 额度</option>
                   <option value="smart">智能 — 仅疑似 NSFW 才转分流重试（默认）</option>
                   <option value="force">强制 — 主通道失败一律转分流重试</option>
                 </select>
                 <span class="hint">
                   主通道（qwen）出图失败时是否自动改用分流通道（真 NAI）重画。<br>
+                  <b>不自动转</b>：失败就失败，连「疑似」判定都不做 —— 最省额度，但 NSFW 漏判时图出不来。<br>
                   <b>智能</b>：正文/标记命中判定词，或错误是内容策略拒绝（qwen 因 NSFW 拒答）才转 ——
                   日常图 qwen 网络失败不会白烧 NAI 额度。<br>
                   <b>强制</b>：不管什么原因失败都转分流重试，图必定出得来，但日常图失败也会消耗 NAI 额度。
