@@ -883,6 +883,19 @@ input[type=number]{-moz-appearance:textfield}
                   NSFW 那一张永远由分析模型语义判断真正成人的时刻。
                 </span>
               </label>
+              <label class="field">
+                <span class="lab">主通道失败后的重试策略</span>
+                <select id="f-nsfw_retry">
+                  <option value="smart">智能 — 仅疑似 NSFW 才转分流重试（默认）</option>
+                  <option value="force">强制 — 主通道失败一律转分流重试</option>
+                </select>
+                <span class="hint">
+                  主通道（qwen）出图失败时是否自动改用分流通道（真 NAI）重画。<br>
+                  <b>智能</b>：正文/标记命中判定词，或错误是内容策略拒绝（qwen 因 NSFW 拒答）才转 ——
+                  日常图 qwen 网络失败不会白烧 NAI 额度。<br>
+                  <b>强制</b>：不管什么原因失败都转分流重试，图必定出得来，但日常图失败也会消耗 NAI 额度。
+                </span>
+              </label>
             </div>
             <div class="err" id="nsfw-test-err"></div>
           </div>
@@ -1197,7 +1210,7 @@ function toggleSidebar(open) {
 $('btn-menu').onclick = () => toggleSidebar(true);
 
 /* ── 设置界面 ── */
-const TEXT_KEYS = ['base_url', 'api_key', 'upstream_type', 'model', 'negative', 'prompt_format', 'exclude_types', 'inject_position', 'ctx_mode', 'ctx_direct_guide', 'ctx_direct_place', 'ctx_source', 'ctx_url', 'ctx_key', 'ctx_model', 'ctx_style', 'ctx_quality', 'ctx_negative', 'jb_llm', 'jb_image', 'active_artist', 'sign_mode', 'exclusive_salt', 'nsfw_base_url', 'nsfw_api_key', 'nsfw_model', 'nsfw_upstream_type', 'nsfw_prompt_format', 'nsfw_negative', 'nsfw_words', 'nsfw_prefix', 'nsfw_mix', 'nsfw_daily_place'];
+const TEXT_KEYS = ['base_url', 'api_key', 'upstream_type', 'model', 'negative', 'prompt_format', 'exclude_types', 'inject_position', 'ctx_mode', 'ctx_direct_guide', 'ctx_direct_place', 'ctx_source', 'ctx_url', 'ctx_key', 'ctx_model', 'ctx_style', 'ctx_quality', 'ctx_negative', 'jb_llm', 'jb_image', 'active_artist', 'sign_mode', 'exclusive_salt', 'nsfw_base_url', 'nsfw_api_key', 'nsfw_model', 'nsfw_upstream_type', 'nsfw_prompt_format', 'nsfw_negative', 'nsfw_words', 'nsfw_prefix', 'nsfw_mix', 'nsfw_daily_place', 'nsfw_retry'];
 const NUM_KEYS = ['width', 'height', 'steps', 'scale', 'max_per_round', 'timeout_sec', 'interval_ms', 'inject_depth', 'ctx_timeout_sec', 'nsfw_max'];
 const BOOL_KEYS = ['enabled', 'swipe_regenerate', 'strip_marker', 'inject_prompt', 'debug', 'ctx_enabled', 'parallel', 'marker_redistribute', 'nsfw_enabled'];
 

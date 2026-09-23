@@ -812,9 +812,19 @@ async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMo
                 result = await attempt(firstRoute, diverted);
             } catch (err) {
                 if (isAborted(signal)) throw err;
-                // 主通道失败 → 若配置了分流通道，自动转分流重试同一张（不重复判词）。
-                if (!diverted && cfg.nsfw_enabled && !!cfg.nsfw_base_url) {
-                    const why = truncateText(err?.message ?? String(err), 200);
+                // 主通道失败 → 转分流重试的触发条件（nsfw_retry 两档）：
+                //   force = 不管什么原因，无条件强制转分流 —— 图必定出得来（用户拍板）；
+                //   smart = 仅当「疑似 NSFW」才转 —— 正文/标记命中判定词，
+                //           或错误信息是内容策略拒绝（qwen 因 NSFW 拒答，这才是判定漏判的情况）。
+                //           日常图 qwen 网络抖动 / 超时失败不转，避免白烧 NAI 额度。
+                const whyFull = String(err?.message ?? String(err));
+                const why = truncateText(whyFull, 200);
+                const nsfwHint = (bodyForNsfw && detectNsfw(bodyForNsfw, cfg.nsfw_words))
+                    || detectNsfw(`${m.desc ?? ''} ${m.tags ?? ''}`, cfg.nsfw_words);
+                const policyRejected = /content\s*policy|not\s*allowed|refus\w*|blocked?|violat\w+|prohibit\w+|拒绝|内容策略|敏感|不予|无法生成|不允许|合规|审核|风控/i.test(whyFull);
+                const shouldRetry = !diverted && cfg.nsfw_enabled && !!cfg.nsfw_base_url
+                    && (cfg.nsfw_retry === 'force' || nsfwHint || policyRejected);
+                if (shouldRetry) {
                     // 直出散文标记没有 tags 段：直接把散文当标签送分流通道必然画不出来，
                     // 必须先让分析模型把正文翻译成 desc+tags，再送标签。这跟 runDirectPass
                     // 命中分流分支的处理一致 —— 否则 qwen 拒答后转 NAI 送散文，同样报废。
