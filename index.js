@@ -22,7 +22,7 @@ import { findMarkers, hasMarkers, stripMarkers, buildDisplayText, effectiveSourc
 import { generateIllustration, testConnection } from './lib/nai-api.js';
 import {
     applyMarkers, resolveCtxSource, applyProseMarker, applyProseMarkers, buildDirectProse, directAppliesTo,
-    pickProseAnchor, splitProseChunks,
+    pickProseAnchor, pickDirectAnchor, splitProseChunks,
 } from './lib/analysis.js';
 import { artistAppliesTo, artistPromptFor, withArtistPrompt } from './lib/artist.js';
 import { analyzeContext, testAnalyzeModel } from './lib/llm-api.js';
@@ -459,8 +459,9 @@ async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
 
     // 直出多张用 applyProseMarkers：每张插到对应段落下，而不是全部挂末尾。
     // 单张时走 applyProseMarker（用启发式落点或末尾，行为与旧版一致）。
+    // 落点统一走 pickDirectAnchor：末尾已全局禁用，必须落在正文内部（上/中）。
     const src = items.length === 1
-        ? applyProseMarker(body, items[0].prose, cfg.ctx_direct_place === 'end' ? -1 : pickProseAnchor(body))
+        ? applyProseMarker(body, items[0].prose, pickDirectAnchor(body))
         : applyProseMarkers(body, items);
     await runIllustration(ctx, messageId, msg, items, signal, { direct: true, src });
 }
@@ -1578,7 +1579,7 @@ function installBridge() {
                             }
                             direct = true;
                             const body = stripMarkers(String(msg.mes ?? ''));
-                            directAt = c.ctx_direct_place === 'end' ? -1 : pickProseAnchor(body);
+                            directAt = pickDirectAnchor(body);
                             items = [{
                                 desc: buildDirectProse(body, {
                                     guide: c.ctx_direct_guide,

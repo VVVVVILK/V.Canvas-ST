@@ -81,7 +81,7 @@ await new Promise(r => server.listen(18999, '127.0.0.1', r));
 const { generateIllustration, testConnection } = await import('../lib/nai-api.js');
 const { findMarkers, buildDisplayText, stripMarkers, hasMarkers, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream, MAX_MARKER_LEN, redistributeMarkers, isTailClustered } = await import('../lib/marker.js');
 const { detectNsfw, parseWords, buildWordList } = await import('../lib/nsfw.js');
-const { parseAnalysisJSON, applyMarkers, findAnchor, buildAnalysisMessages, buildAnalysisParts, analysisTokenBudget, resolveCtxSource, directAppliesTo, buildDirectProse, proseToMarker, applyProseMarker, applyProseMarkers, splitProseChunks, DIRECT_PROSE_MAX, DIRECT_GUIDE, pickProseAnchor } = await import('../lib/analysis.js');
+const { parseAnalysisJSON, applyMarkers, findAnchor, buildAnalysisMessages, buildAnalysisParts, analysisTokenBudget, resolveCtxSource, directAppliesTo, buildDirectProse, proseToMarker, applyProseMarker, applyProseMarkers, splitProseChunks, interiorAnchor, pickDirectAnchor, DIRECT_PROSE_MAX, DIRECT_GUIDE, pickProseAnchor } = await import('../lib/analysis.js');
 const { artistAppliesTo, artistPromptFor, withArtistPrompt, sanitizeArtistPrompt, sanitizeArtistName, ARTIST_PROMPT_MAX } = await import('../lib/artist.js');
 
 let pass = 0, fail = 0;
@@ -458,6 +458,37 @@ report.push('', '== 正文直出（文生图）==');
     const legacySrc = applyProseMarkers(multiBody, legacyShaped);
     ok('legacy desc-shaped items are tolerated (3 markers)', findMarkers(legacySrc).length === 3, String(findMarkers(legacySrc).length));
     ok('empty item list leaves the body alone', applyProseMarkers(multiBody, []) === multiBody);
+
+    // ── 落点末尾禁用（作者要求：必须落在正文内部，上/中皆可，绝不挂底）──
+    const trimEndOf = (t) => { const m = /\S\s*$/.exec(t); return m ? m.index + 1 : t.length; };
+    const atIsInterior = (text, at) => at >= 0 && at < trimEndOf(text);
+    ok('interiorAnchor: single paragraph lands inside', atIsInterior('一段没有分段的长正文，句号在后。中间还有一句。结尾在这里。', interiorAnchor('一段没有分段的长正文，句号在后。中间还有一句。结尾在这里。')));
+    ok('interiorAnchor: all-dialogue text lands inside', atIsInterior('「甲」\n\n「乙」\n\n「丙」', interiorAnchor('「甲」\n\n「乙」\n\n「丙」')));
+    ok('interiorAnchor: empty text returns -1', interiorAnchor('') === -1 && interiorAnchor(null) === -1);
+    ok('interiorAnchor: never picks the tail of a multi-para body',
+        interiorAnchor('前段叙述。\n\n中段叙述，这一段写得很长很长很长。\n\n尾段叙述。') < trimEndOf('前段叙述。\n\n中段叙述，这一段写得很长很长很长。\n\n尾段叙述。'));
+    const noTailCases = [
+        '单段无分段的长正文，句号在后。中间还有一句。结尾在这里。',
+        '「甲」\n\n「乙」\n\n「丙」',
+        '前段叙述。\n\n尾段叙述，这一段画面感最强最强最强最强。',
+        rep,
+    ];
+    for (const [i, text] of noTailCases.entries()) {
+        const placedAt = pickDirectAnchor(text);
+        const placed = applyProseMarker(text, '载荷', placedAt);
+        ok(`no-tail case #${i + 1}: anchor is interior`, atIsInterior(text, placedAt));
+        ok(`no-tail case #${i + 1}: placed marker is not the last thing in the message`,
+            placed.trimEnd().indexOf('[ILLUST: 载荷]') !== placed.trimEnd().length - '[ILLUST: 载荷]'.length);
+        ok(`no-tail case #${i + 1}: exactly one marker`, findMarkers(placed).length === 1);
+    }
+    // 多张路径：最后一份的落点原本等于正文末尾，必须被收进内部
+    const twoBody = '前段叙述。\n\n尾段叙述，画面感很强，写得也很长很长很长很长。';
+    const twoChunks = splitProseChunks(twoBody, 2);
+    const twoItems = twoChunks.map(c => ({ prose: '载荷 ' + c, at: -1 }));
+    const twoSrc = applyProseMarkers(twoBody, twoItems);
+    ok('multi path: exactly one marker per chunk', findMarkers(twoSrc).length === 2, String(findMarkers(twoSrc).length));
+    ok('multi path: no marker sits at the very bottom of the message',
+        findMarkers(twoSrc).every(m => twoSrc.slice(m.end).trim().length > 0));
 }
 
 report.push('', '== 画师串 ==');
