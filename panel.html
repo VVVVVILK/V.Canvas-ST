@@ -302,17 +302,20 @@ details.adv > .card-body{padding:18px 20px}
             <div class="route">
               <div class="r-no">②</div>
               <div class="r-body">
-                <div class="r-title">正文直出（默认的补图方式）</div>
+                <div class="r-title">正文直出（默认 · 真正的直接生图）</div>
                 <div class="r-flow">AI 没写标记 → 把这条回复的原文直接交给画图模型：「就画这段里最有画面感的瞬间」。</div>
-                <div class="r-hint">不多花一次模型调用，装好就能用。要求出图上游读得懂自然语言（V.Adapter / 聊天画图模型）。<b>当前：<span id="route-2-state">-</span></b></div>
+                <div class="r-hint"><b>不需要分析模型，没有任何文字模型参与</b>，不多花一次调用，装好就能用。
+                要求出图上游读得懂自然语言（V.Adapter / 聊天画图模型）。<b>当前：<span id="route-2-state">-</span></b></div>
               </div>
             </div>
             <div class="route">
               <div class="r-no">③</div>
               <div class="r-body">
-                <div class="r-title">分析模型补图（直连官方 NAI 用这条）</div>
+                <div class="r-title">分析模型补图（直连官方 NAI 的人才需要）</div>
                 <div class="r-flow">AI 没写标记 → 先让一个文字模型读正文，挑画面、写提示词、定插图位置 → 再交给画图模型。</div>
-                <div class="r-hint">多一次模型调用，但位置更准、可一张回复配多张；官方 NAI 只认英文标签，必须走这条。<b>当前：<span id="route-3-state">-</span></b></div>
+                <div class="r-hint">多一次模型调用，但位置更准、可一张回复配多张；官方 NAI 只认英文标签，必须走这条。
+                <b>经 V.Adapter / 聊天画图模型出图的用不到这条 —— 补图方式是「正文直出」时它完全不参与。</b>
+                <b>当前：<span id="route-3-state">-</span></b></div>
               </div>
             </div>
             <div class="muted" style="font-size:12px;margin-top:10px;line-height:1.7">
