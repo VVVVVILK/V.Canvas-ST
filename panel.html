@@ -8,17 +8,24 @@
 /* 深色主题，独立于酒馆主题；设计语言与 V.Adapter 面板保持一致。 */
 :root{
   --bg:#0f172a; --fg:hsl(210 20% 96%); --card:hsl(222 24% 12%);
-  --primary:#10b981; --primary-fg:#03110a; --muted:hsl(222 15% 20%);
+  --primary:#10b981; --primary-2:#22c55e; --primary-fg:#03110a; --muted:hsl(222 15% 20%);
+  --ac-h:152; --ac-s:70%; --ac-l:45%;
   --muted-fg:hsl(217 12% 62%); --border:hsl(222 14% 22%);
   --success:#22c55e; --warning:hsl(38 92% 50%); --danger:hsl(0 72% 58%); --info:hsl(200 80% 55%);
   --radius:.625rem;
 }
+/* ── 面板主题：只换主色相，布局与深色底不动 ──
+   默认绿（上面 :root）；紫 / 粉 / 橙用 html[data-theme] 覆盖，见面板侧栏底部的色点开关。
+   主色统一从 --ac-h/s/l 派生淡色（tint），换主题时所有浅色背景/描边一起跟着变。 */
+:root[data-theme="purple"]{--ac-h:262;--ac-s:83%;--ac-l:66%;--primary:#8b5cf6;--primary-2:#a78bfa}
+:root[data-theme="pink"]{--ac-h:330;--ac-s:80%;--ac-l:62%;--primary:#ec4899;--primary-2:#f472b6}
+:root[data-theme="orange"]{--ac-h:25;--ac-s:90%;--ac-l:58%;--primary:#f59e0b;--primary-2:#fb923c}
 *{box-sizing:border-box;margin:0;padding:0}
 html{color-scheme:dark}
 body{
   background:
-    radial-gradient(60rem 30rem at 85% -10%, rgb(16 185 129 / .10), transparent 60%),
-    radial-gradient(50rem 26rem at -10% 110%, rgb(34 197 94 / .07), transparent 60%),
+    radial-gradient(60rem 30rem at 85% -10%, hsl(var(--ac-h) var(--ac-s) var(--ac-l) / .10), transparent 60%),
+    radial-gradient(50rem 26rem at -10% 110%, hsl(var(--ac-h) var(--ac-s) var(--ac-l) / .07), transparent 60%),
     linear-gradient(180deg,#0f172a,#18181b);
   color:var(--fg);font-size:14px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,sans-serif;
   -webkit-font-smoothing:antialiased;
@@ -32,22 +39,28 @@ a{color:var(--primary)}
 .sidebar{width:250px;flex:none;display:flex;flex-direction:column;border-right:1px solid var(--border);background:hsl(222 24% 12% / .7);backdrop-filter:blur(16px);position:sticky;top:0;height:100vh}
 .sidebar-head{padding:22px 20px 18px;border-bottom:1px solid hsl(222 14% 22% / .6)}
 .brand{display:flex;align-items:center;gap:10px}
-.brand-mark{width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,#10b981,#22c55e);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;box-shadow:0 8px 20px rgb(16 185 129 / .35);flex:none;font-family:ui-monospace,Consolas,monospace}
+.brand-mark{width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;box-shadow:0 8px 20px hsl(var(--ac-h) var(--ac-s) var(--ac-l) / .35);flex:none;font-family:ui-monospace,Consolas,monospace}
 .brand-name{font-size:16px;font-weight:700}
 .brand-sub{margin-top:8px;font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted-fg)}
 .sidebar-nav{flex:1;padding:14px 12px;display:flex;flex-direction:column;gap:4px;overflow-y:auto}
 .nav-btn{position:relative;width:100%;display:flex;flex-direction:column;gap:2px;padding:9px 12px;border:none;border-radius:8px;background:transparent;color:var(--muted-fg);font-size:13.5px;font-weight:500;cursor:pointer;text-align:left;font-family:inherit;transition:background .15s,color .15s}
 .nav-btn small{font-size:11px;font-weight:400;color:hsl(217 12% 48%)}
 .nav-btn:hover{background:hsl(222 18% 17% / .7);color:var(--fg)}
-.nav-btn.active{background:hsl(152 65% 45% / .1);color:var(--fg)}
+.nav-btn.active{background:hsl(var(--ac-h) var(--ac-s) var(--ac-l) / .1);color:var(--fg)}
 .nav-btn.active small{color:hsl(217 12% 62%)}
 .nav-btn.active:before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);height:22px;width:3px;border-radius:999px;background:var(--primary)}
 .sidebar-foot{padding:14px 16px;border-top:1px solid hsl(222 14% 22% / .6);display:flex;flex-direction:column;gap:10px}
-.pill{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;color:var(--primary);background:hsl(160 84% 39% / .1);border:1px solid hsl(160 84% 39% / .2);padding:3px 9px;border-radius:999px;align-self:flex-start}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;color:var(--primary);background:hsl(var(--ac-h) var(--ac-s) var(--ac-l) / .1);border:1px solid hsl(var(--ac-h) var(--ac-s) var(--ac-l) / .2);padding:3px 9px;border-radius:999px;align-self:flex-start}
 .pill.off{color:var(--danger);background:hsl(0 72% 58% / .1);border-color:hsl(0 72% 58% / .25)}
 .pill.warn{color:var(--warning);background:hsl(38 92% 50% / .1);border-color:hsl(38 92% 50% / .28)}
 .pdot{width:6px;height:6px;border-radius:50%;background:currentColor}
 .foot-note{font-size:11px;color:var(--muted-fg);line-height:1.6}
+/* 主题切换：四个色点，点了就换主色（存 localStorage，纯面板外观，不进扩展设置） */
+.theme-row{display:flex;align-items:center;gap:9px}
+.theme-lab{font-size:10.5px;font-weight:700;letter-spacing:.1em;color:var(--muted-fg)}
+.theme-dot{width:16px;height:16px;border-radius:50%;border:2px solid transparent;background:var(--td);cursor:pointer;padding:0;flex:none;transition:transform .15s,border-color .15s}
+.theme-dot:hover{transform:scale(1.18)}
+.theme-dot.on{border-color:hsl(0 0% 100% / .9)}
 /* main */
 .main{flex:1;min-width:0;display:flex;flex-direction:column}
 .content{max-width:1080px;width:100%;margin:0 auto;padding:26px 30px 56px}
@@ -90,7 +103,7 @@ label.field .lab{font-size:12.5px;font-weight:600}
 label.field .hint{font-size:11.5px;color:var(--muted-fg);line-height:1.55}
 input[type=text],input[type=password],input[type=number],select,textarea{width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:hsl(222 26% 9% / .8);color:var(--fg);font-size:13.5px;font-family:inherit;outline:none}
 textarea{resize:vertical;line-height:1.6}
-input:focus,select:focus,textarea:focus{border-color:hsl(152 65% 45% / .6);box-shadow:0 0 0 3px hsl(152 65% 45% / .12)}
+input:focus,select:focus,textarea:focus{border-color:hsl(var(--ac-h) var(--ac-s) var(--ac-l) / .6);box-shadow:0 0 0 3px hsl(var(--ac-h) var(--ac-s) var(--ac-l) / .12)}
 input[type=number]{-moz-appearance:textfield}
 /* 密钥框：输入框默认隐藏明文，右侧按钮切换显示 */
 .secret-wrap{position:relative;display:block}
@@ -100,13 +113,13 @@ input[type=number]{-moz-appearance:textfield}
 .btn{display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:8px;border:1px solid var(--border);background:var(--muted);color:var(--fg);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:filter .15s,opacity .15s}
 .btn:hover{filter:brightness(1.15)}
 .btn:disabled{opacity:.55;cursor:not-allowed}
-.btn.primary{background:linear-gradient(135deg,#10b981,#22c55e);border-color:transparent;color:var(--primary-fg)}
+.btn.primary{background:linear-gradient(135deg,var(--primary),var(--primary-2));border-color:transparent;color:var(--primary-fg)}
 .btn.ghost{background:transparent}
 .btn.danger{color:var(--danger);border-color:hsl(0 72% 58% / .35);background:hsl(0 72% 58% / .08)}
 .btn.sm{padding:6px 11px;font-size:12px}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
-.tag.ok{color:var(--success);background:hsl(142 71% 45% / .12);border:1px solid hsl(142 71% 45% / .25)}
+.tag.ok{color:var(--primary);background:hsl(var(--ac-h) var(--ac-s) var(--ac-l) / .12);border:1px solid hsl(var(--ac-h) var(--ac-s) var(--ac-l) / .25)}
 .tag.bad{color:var(--danger);background:hsl(0 72% 58% / .1);border:1px solid hsl(0 72% 58% / .25)}
 .tag.info{color:var(--info);background:hsl(200 80% 55% / .1);border:1px solid hsl(200 80% 55% / .25)}
 .code{display:block;padding:8px 10px;border-radius:8px;background:hsl(222 26% 8%);border:1px solid var(--border);font-size:12px;word-break:break-all}
@@ -120,7 +133,7 @@ input[type=number]{-moz-appearance:textfield}
 .switch-row .sr-hint{margin-top:3px;font-size:11.5px;color:var(--muted-fg);line-height:1.55}
 .sw{position:relative;flex:none;width:42px;height:24px;border-radius:999px;background:hsl(222 16% 26%);border:1px solid var(--border);cursor:pointer;transition:background .18s;margin-top:2px}
 .sw:after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:hsl(217 12% 78%);transition:transform .18s,background .18s}
-.sw.on{background:hsl(152 65% 40%);border-color:hsl(152 65% 45% / .5)}
+.sw.on{background:var(--primary);border-color:hsl(var(--ac-h) var(--ac-s) var(--ac-l) / .5)}
 .sw.on:after{transform:translateX(18px);background:#fff}
 .sw.dis{opacity:.45;cursor:not-allowed}
 /* 缩略图 */
@@ -133,13 +146,13 @@ input[type=number]{-moz-appearance:textfield}
 .empty{padding:26px 0;text-align:center;font-size:12.5px;color:var(--muted-fg);line-height:1.7}
 .img-broken{padding:12px;font-size:11.5px;line-height:1.6;color:var(--danger);background:hsl(0 72% 58% / .08);border:1px dashed hsl(0 72% 58% / .35);border-radius:8px;word-break:break-all}
 .img-broken b{display:block;margin-bottom:4px;font-size:12.5px}
-/* 转译出图结果 */
+/* 测试出图结果 */
 .tr-preview{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:hsl(222 26% 9% / .6);display:flex;justify-content:center}
 .tr-preview img{display:block;max-width:100%;max-height:56vh;height:auto}
 /* toast */
 #toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:9px;z-index:60}
 .toast{padding:11px 15px;border-radius:10px;border:1px solid var(--border);background:hsl(222 24% 12% / .97);font-size:13px;max-width:380px;box-shadow:0 12px 30px rgb(0 0 0 / .35);line-height:1.6}
-.toast.ok{border-color:hsl(142 71% 45% / .45)}
+.toast.ok{border-color:hsl(var(--ac-h) var(--ac-s) var(--ac-l) / .45)}
 .toast.bad{border-color:hsl(0 72% 58% / .45)}
 /* 桥接自检失败 */
 #bridge-warn{display:none;margin:14px 0 0;padding:14px 16px;border-radius:10px;border:1px solid hsl(0 72% 58% / .45);background:hsl(0 72% 58% / .1);color:var(--fg);font-size:13px;line-height:1.7}
@@ -182,20 +195,20 @@ details.adv > .card-body{padding:18px 20px}
 .chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
 .chip.must{color:var(--warning);background:hsl(38 92% 50% / .12);border:1px solid hsl(38 92% 50% / .35)}
 .chip.adv{color:var(--muted-fg);background:hsl(222 14% 22% / .5);border:1px solid var(--border)}
-.chip.ok{color:var(--success);background:hsl(142 71% 45% / .12);border:1px solid hsl(142 71% 45% / .25)}
+.chip.ok{color:var(--primary);background:hsl(var(--ac-h) var(--ac-s) var(--ac-l) / .12);border:1px solid hsl(var(--ac-h) var(--ac-s) var(--ac-l) / .25)}
 .chip.off{color:var(--muted-fg);background:hsl(222 14% 22% / .5);border:1px solid var(--border)}
 /* 快速开始清单 */
 .qs-step{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px dashed hsl(222 14% 22% / .7)}
 .qs-step:last-child{border-bottom:none}
 .qs-dot{flex:none;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;margin-top:1px}
-.qs-step.done .qs-dot{background:hsl(142 71% 45% / .18);color:var(--success)}
+.qs-step.done .qs-dot{background:hsl(var(--ac-h) var(--ac-s) var(--ac-l) / .18);color:var(--primary)}
 .qs-step.todo .qs-dot{background:hsl(38 92% 50% / .15);color:var(--warning)}
 .qs-step .qs-body{flex:1;min-width:0}
 .qs-step .qs-title{font-size:13.5px;font-weight:600}
 .qs-step.done .qs-title{color:var(--muted-fg)}
 .qs-step .qs-hint{margin-top:3px;font-size:12px;color:var(--muted-fg);line-height:1.6}
 .qs-step .qs-act{margin-top:8px}
-/* 三种出图方式对照 */
+/* 出图方式对照 */
 .route{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px dashed hsl(222 14% 22% / .7)}
 .route:last-child{border-bottom:none}
 .route .r-no{flex:none;width:22px;height:22px;border-radius:6px;background:hsl(200 80% 55% / .12);color:var(--info);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;margin-top:1px}
@@ -212,6 +225,17 @@ details.adv > .card-body{padding:18px 20px}
 </head>
 <body>
 
+<script>
+/* 面板主题：赶在首帧渲染前套上，避免刷新时先闪一下默认绿。
+   纯外观偏好，存 localStorage，不进扩展设置（所以契约检查的 53 个字段不受影响）。 */
+(function () {
+  try {
+    var t = localStorage.getItem('v_canvas_panel_theme') || '';
+    if (['purple', 'pink', 'orange'].indexOf(t) >= 0) document.documentElement.dataset.theme = t;
+  } catch (e) { /* 隐私模式拿不到 localStorage 就用默认 */ }
+})();
+</script>
+
 <div class="app-shell">
   <aside class="sidebar">
     <div class="sidebar-head">
@@ -225,12 +249,19 @@ details.adv > .card-body{padding:18px 20px}
       <button class="nav-btn active" data-page="overview">概览<small>第一次用？从这页开始</small></button>
       <button class="nav-btn" data-page="history">生成记录<small>画过的所有图</small></button>
       <button class="nav-btn" data-page="prompt">提示词<small>画风、质量词、画师串</small></button>
-      <button class="nav-btn" data-page="translate">手动出图<small>输入一句话画一张</small></button>
+      <button class="nav-btn" data-page="translate">测试出图<small>自检：出图服务能不能用</small></button>
       <button class="nav-btn" data-page="context">自动补图<small>正文没标记时怎么画</small></button>
       <button class="nav-btn" data-page="settings">设置<small>出图渠道、尺寸、触发规则</small></button>
     </nav>
     <div class="sidebar-foot">
       <span class="pill" id="pill"><span class="pdot"></span><span id="pill-text">检查中…</span></span>
+      <div class="theme-row" id="theme-row">
+        <span class="theme-lab">主题</span>
+        <button class="theme-dot" type="button" data-theme-set="" style="--td:#10b981" title="默认 · 绿"></button>
+        <button class="theme-dot" type="button" data-theme-set="purple" style="--td:#8b5cf6" title="紫色"></button>
+        <button class="theme-dot" type="button" data-theme-set="pink" style="--td:#ec4899" title="粉色"></button>
+        <button class="theme-dot" type="button" data-theme-set="orange" style="--td:#f59e0b" title="橙色"></button>
+      </div>
       <div class="foot-note" id="foot-version">V.Canvas</div>
     </div>
   </aside>
@@ -256,7 +287,7 @@ details.adv > .card-body{padding:18px 20px}
       <section class="page active" id="page-overview">
         <div class="page-head">
           <h1>概览</h1>
-          <p><b>这一页是干嘛的：</b>看插件配好没有、图是怎么自动画出来的。第一次使用，先看「三步开始」；想弄懂它什么时候画图，看「三种出图方式」。</p>
+          <p><b>这一页是干嘛的：</b>看插件配好没有、图是怎么自动画出来的。第一次使用，先看「三步开始」；想弄懂它什么时候画图，看「出图方式」。</p>
         </div>
 
         <div class="card">
@@ -281,7 +312,7 @@ details.adv > .card-body{padding:18px 20px}
               <div class="qs-dot">3</div>
               <div class="qs-body">
                 <div class="qs-title">手动试一张，确认整条链路通</div>
-                <div class="qs-hint">去「手动出图」页输一句话试画；或等下一轮 AI 回复自动配图。</div>
+                <div class="qs-hint">去「测试出图」页自检一次（结果只在面板里）；想验证图能真的插进正文，用「自动补图 → 手动补图」。</div>
                 <div class="qs-act"><button class="btn sm" id="qs-goto-translate">去试一张 →</button></div>
               </div>
             </div>
@@ -289,37 +320,29 @@ details.adv > .card-body{padding:18px 20px}
         </div>
 
         <div class="card">
-          <div class="card-head"><div><div class="card-title">三种出图方式（它什么时候会画图）</div><div class="card-desc">三种方式并存，互不打架；出图渠道和尺寸是共用的</div></div></div>
+          <div class="card-head"><div><div class="card-title">出图方式（正文没有标记时它怎么画）</div><div class="card-desc">两种方式二选一，互不打架；出图渠道和尺寸是共用的</div></div></div>
           <div class="card-body">
             <div class="route">
               <div class="r-no">①</div>
               <div class="r-body">
-                <div class="r-title">AI 自己点菜（最快，优先）</div>
-                <div class="r-flow">AI 回复里写了 <span class="mono">[ILLUST: 画面描述 | 标签]</span> <span class="term" data-term="marker">标记</span> → 插件看到就地画一张，插在那一行下面。</div>
-                <div class="r-hint">规则由插件自动教给 AI（「设置 → 提示词注入」）。总开关开着就生效。</div>
+                <div class="r-title">正文直出（默认 · 真正的直接生图）</div>
+                <div class="r-flow">把这条回复的原文直接交给画图模型：「就画这段里最有画面感的瞬间」。</div>
+                <div class="r-hint"><b>不需要分析模型，没有任何文字模型参与</b>，不多花一次调用，装好就能用。
+                要求出图服务读得懂自然语言（V.Adapter / 聊天画图模型）。<b>当前：<span id="route-1-state">-</span></b></div>
               </div>
             </div>
             <div class="route">
               <div class="r-no">②</div>
               <div class="r-body">
-                <div class="r-title">正文直出（默认 · 真正的直接生图）</div>
-                <div class="r-flow">AI 没写标记 → 把这条回复的原文直接交给画图模型：「就画这段里最有画面感的瞬间」。</div>
-                <div class="r-hint"><b>不需要分析模型，没有任何文字模型参与</b>，不多花一次调用，装好就能用。
-                要求出图上游读得懂自然语言（V.Adapter / 聊天画图模型）。<b>当前：<span id="route-2-state">-</span></b></div>
-              </div>
-            </div>
-            <div class="route">
-              <div class="r-no">③</div>
-              <div class="r-body">
                 <div class="r-title">分析模型补图（直连官方 NAI 的人才需要）</div>
-                <div class="r-flow">AI 没写标记 → 先让一个文字模型读正文，挑画面、写提示词、定插图位置 → 再交给画图模型。</div>
+                <div class="r-flow">先让一个文字模型读正文，挑画面、写提示词、定插图位置 → 再交给画图模型。</div>
                 <div class="r-hint">多一次模型调用，但位置更准、可一张回复配多张；官方 NAI 只认英文标签，必须走这条。
                 <b>经 V.Adapter / 聊天画图模型出图的用不到这条 —— 补图方式是「正文直出」时它完全不参与。</b>
-                <b>当前：<span id="route-3-state">-</span></b></div>
+                <b>当前：<span id="route-2-state">-</span></b></div>
               </div>
             </div>
             <div class="muted" style="font-size:12px;margin-top:10px;line-height:1.7">
-              方式②和③在「自动补图」页二选一；另有「手动出图」页随时手画一张（不进聊天）。
+              方式①和②在「自动补图」页二选一；想单独确认链路通不通，用「测试出图」页自检一次（结果只在面板里，不进聊天）。
               分流通道（NSFW 第二出图后端）在「设置」页底部的进阶区。
             </div>
           </div>
@@ -339,7 +362,7 @@ details.adv > .card-body{padding:18px 20px}
               <div class="kv"><span class="k">API Key</span><span class="v mono" id="ov-key">-</span></div>
               <div class="kv"><span class="k">模型名</span><span class="v mono" id="ov-model">-</span></div>
               <div class="kv"><span class="k">尺寸 / 步数 / CFG</span><span class="v mono" id="ov-params">-</span></div>
-              <div class="kv"><span class="k"><span class="term" data-term="pformat">送给上游的内容</span></span><span class="v" id="ov-prompt-format">-</span></div>
+              <div class="kv"><span class="k"><span class="term" data-term="pformat">送给出图服务的内容</span></span><span class="v" id="ov-prompt-format">-</span></div>
             </div>
           </div>
 
@@ -350,7 +373,7 @@ details.adv > .card-body{padding:18px 20px}
               <div class="kv"><span class="k">把出图规则教给 AI</span><span class="v" id="ov-inject">-</span></div>
               <div class="kv"><span class="k">自动补图（无标记时）</span><span class="v" id="ov-ctx">-</span></div>
               <div class="kv"><span class="k">标记是否进入 AI 上下文</span><span class="v" id="ov-strip">-</span></div>
-              <div class="kv"><span class="k"><span class="term" data-term="swipe">swipe</span> 换回复时重新配图</span><span class="v" id="ov-swipe">-</span></div>
+              <div class="kv"><span class="k"><span class="term" data-term="swipe">备选回复</span>换一条时重新配图</span><span class="v" id="ov-swipe">-</span></div>
               <div class="kv"><span class="k">忽略的消息类型</span><span class="v mono" id="ov-exclude">-</span></div>
             </div>
           </div>
@@ -449,9 +472,9 @@ details.adv > .card-body{padding:18px 20px}
               <span class="hint">填了会拼进分析模型的每次请求。只影响「读文字」的那一步。</span>
             </label>
             <label class="field" style="margin-top:14px">
-              <span class="lab">给「画图上游」的破限词</span>
-              <textarea id="f-jb_image" rows="5" placeholder="留空 = 完全不生效。出图上游拒绝画某些画面时使用。"></textarea>
-              <span class="hint">填了会拼到出图提示词最前面（自动插画和手动出图都生效）。实质只是个提示词前缀，<b>不保证有效</b>。</span>
+              <span class="lab">给「画图服务」的破限词</span>
+              <textarea id="f-jb_image" rows="5" placeholder="留空 = 完全不生效。出图服务拒绝画某些画面时使用。"></textarea>
+              <span class="hint">填了会拼到出图提示词最前面（自动插画和测试出图都生效）。实质只是个提示词前缀，<b>不保证有效</b>。</span>
             </label>
             <details class="explain warn">
               <summary>它能起多大作用？先看「拒绝」发生在哪一层（点开详解）</summary>
@@ -460,7 +483,7 @@ details.adv > .card-body{padding:18px 20px}
                 · <b>扩散模型的过滤器</b>（直连官方 NAI / 本地 SD）：模型不会「拒答」，拦你的是过滤器；若它按标签命中名单，看的是你的标签不是前缀，<b>怎么措辞都没用</b>。本地 ComfyUI / SD 通常本来就没有审核，填了也没意义。<br>
                 · <b>平台级硬过滤</b>（API 服务商的内容策略）：<b>基本无用</b> —— 请求在服务端就被拦下，模型根本轮不到。<br>
                 直连官方 NAI 基本不需要这栏：扩散模型没有「拒答」环节，官方付费订阅本身允许成人向内容。<br>
-                反复尝试可能触发上游风控，<b>合规与账号风险由使用者自行承担</b>。
+                反复尝试可能触发出图服务风控，<b>合规与账号风险由使用者自行承担</b>。
               </div>
             </details>
           </div>
@@ -477,7 +500,7 @@ details.adv > .card-body{padding:18px 20px}
               <div class="explain-body">
                 两条链路拿到的东西根本不同：<br>
                 · <b>直连官方 NovelAI / NAI 网关</b>（扩散模型）送出去的是<b>英文标签串</b>，画师串拼在标签最前面锁定画风。<br>
-                · <b>经 V.Adapter</b>（OpenAI 格式上游）送出去的是<b>自然语言描述</b>，图是上游模型自己画完交回来的 —— 往描述里塞英文画师名只会污染描述，所以插件<b>自动跳过</b>。
+                · <b>经 V.Adapter</b>（OpenAI 格式出图服务）送出去的是<b>自然语言描述</b>，图是服务那边的模型自己画完交回来的 —— 往描述里塞英文画师名只会污染描述，所以插件<b>自动跳过</b>。
               </div>
             </details>
             <label class="field">
@@ -490,12 +513,15 @@ details.adv > .card-body{padding:18px 20px}
         </div>
       </section>
 
-      <!-- ── 手动出图 ── -->
+      <!-- ── 测试出图 ── -->
       <section class="page" id="page-translate">
         <div class="page-head">
-          <h1>手动出图</h1>
-          <p><b>这一页是干嘛的：</b><b>测试出图链路通不通</b> —— 输一句话画一张，成功就说明「在酒馆里聊天会自动配图」这条路是通的（与 V.Adapter 的「测试连接」等价，测的就是同一条链路）。
-          平时聊天用不上这一页；它也可以顺手单独画一张，<b>结果只在面板里展示，不写进聊天记录</b>。</p>
+          <h1>测试出图</h1>
+          <p><b>这一页是自检用的，不是日常功能</b> —— 平时聊天完全用不到它；它是给你「刚装好、或改过出图服务配置之后，确认一下<b>出图服务能不能用</b>」用的。
+          输一句话点「出图」，看下面两件事：<br>
+          ① <b>能出图</b> → 说明<b>酒馆里这条出图链路是通的</b>。它和聊天时自动配图走的是同一条路，所以等价于 V.Adapter 的「测试连接」。<br>
+          ② <b>下面「扩写后」的提示词，和你写的那句话不一样</b> → 说明<b>适配服务（V.Adapter）可用</b>：这段扩写是它做的，能扩写就说明它活着、协议通。直连官方 NAI 没有扩写这一步，两段文字会一样。<br>
+          结果只在面板里展示，<b>不写进酒馆正文</b>。想验证「图片能不能真的插进正文」，去「自动补图」页点一次<b>手动补图</b>。</p>
         </div>
 
         <div class="card">
@@ -514,7 +540,7 @@ details.adv > .card-body{padding:18px 20px}
               <span class="hint">「自动」依赖适配服务的扩写能力；直连官方 NAI 时扩写不会发生，请选「用设置页的尺寸」。</span>
             </label>
             <div class="row">
-              <button class="btn primary" id="btn-tr-gen">出图（测试链路）</button>
+              <button class="btn primary" id="btn-tr-gen">出图（自检一次）</button>
             </div>
             <div class="err" id="tr-err"></div>
           </div>
@@ -552,7 +578,7 @@ details.adv > .card-body{padding:18px 20px}
               <div class="sr-text">
                 <div class="sr-lab">启用自动补图</div>
                 <div class="sr-hint">
-                  和「AI 自己点菜」并存不重复：正文里有标记走标记路线，没标记才走这里。<b>默认开启</b>。
+                  和标记路线并存不重复：正文里有标记走标记路线，没标记才走这里。<b>默认开启</b>。
                 </div>
               </div>
             </div>
@@ -582,9 +608,9 @@ details.adv > .card-body{padding:18px 20px}
                 <b>插在哪</b>：保证落在<b>正文内部</b>（上/中皆可），优先挑「有效叙述最长的那一段」插在它下面；
                 整条只有一段时插在段内句子边界（约六成处）。<b>绝不挂在整条回复的最底下</b>。
                 不如分析模式准（那边「画什么」和「插哪」一次定下来），但保证不会变成「附件」。<br><br>
-                <b>多张怎么出</b>：按「设置 → 每轮上限」，把正文按段切成几份，第 1 张画前段、第 2 张画中段…… 每张独立送上游，内容天然不同。<br><br>
-                <b>限制</b>：只在上游读得懂自然语言时成立（V.Adapter / 聊天画图模型可以；官方 NAI 不行，会自动跳过）。<b>部署在服务器上的适配服务会被地址误判成 NAI</b> —— 那种情况去「设置 → 上游类型」选「适配服务」即可，不用切回分析模式。<br><br>
-                <b>提示词页字段在直出下的去向</b>：画风 → 拼成【画风】放在正文前（强烈建议填）；画质 → 【画质】；负面 → 【负面提示词】；「破限词·分析模型」不使用（没有分析模型）；「破限词·生图上游」照常拼最前；画师串自动跳过。<br><br>
+                <b>多张怎么出</b>：按「设置 → 每轮上限」，把正文按段切成几份，第 1 张画前段、第 2 张画中段…… 每张单独发给出图服务，内容天然不同。<br><br>
+                <b>限制</b>：只在出图服务读得懂自然语言时成立（V.Adapter / 聊天画图模型可以；官方 NAI 不行，会自动跳过）。<b>部署在服务器上的适配服务会被地址误判成 NAI</b> —— 那种情况去「设置 → 出图服务类型」选「适配服务」即可，不用切回分析模式。<br><br>
+                <b>提示词页字段在直出下的去向</b>：画风 → 拼成【画风】放在正文前（强烈建议填）；画质 → 【画质】；负面 → 【负面提示词】；「破限词·分析模型」不使用（没有分析模型）；「破限词·画图服务」照常拼最前；画师串自动跳过。<br><br>
                 <b>命中分流通道时</b>：直出送自然语言而分流通道只吃标签，所以那一批会临时调分析模型把正文翻成标签再走分流；张数与组合由分流通道自己的设置决定。
               </div>
             </details>
@@ -663,11 +689,11 @@ details.adv > .card-body{padding:18px 20px}
 
         <div class="card">
           <div class="card-head">
-            <div><div class="card-title">立即试一次</div><div class="card-desc">不等下一轮对话，马上对最后一条 AI 回复补图</div></div>
-            <button class="btn primary sm" id="btn-ctx-gen">补一张试试</button>
+            <div><div class="card-title">手动补图</div><div class="card-desc">不等下一轮对话，马上对最后一条 AI 回复补图 —— 图会真的插进酒馆正文</div></div>
+            <button class="btn primary sm" id="btn-ctx-gen">补一张</button>
           </div>
           <div class="card-body">
-            <div id="ctx-result"><div class="empty">点右上角按钮即可立即验证链路。失败原因也会显示在这里。</div></div>
+            <div id="ctx-result"><div class="empty">点右上角「补一张」即可立即验证链路：成不成、图插没插进正文，都看这里。失败原因也会显示在这里。</div></div>
           </div>
         </div>
       </section>
@@ -682,7 +708,7 @@ details.adv > .card-body{padding:18px 20px}
 
         <div class="search-box">
           <span class="icon">🔍</span>
-          <input type="text" id="settings-search" placeholder="在这一页里找设置…（输入关键字，如「尺寸」「分流」「swipe」）">
+          <input type="text" id="settings-search" placeholder="在这一页里找设置…（输入关键字，如「尺寸」「分流」「备选」）">
         </div>
         <div class="search-empty" id="search-empty">没有匹配的设置项。</div>
 
@@ -697,7 +723,7 @@ details.adv > .card-body{padding:18px 20px}
               <div class="sr-text">
                 <div class="sr-lab">启用自动插画</div>
                 <div class="sr-hint">
-                  总开关。<b>默认已开启</b>。关掉后：正文里的标记、自动补图，都不再出图（手动出图页不受影响）。
+                  总开关。<b>默认已开启</b>。关掉后：正文里的标记、自动补图，都不再出图（测试出图页不受影响）。
                 </div>
               </div>
             </div>
@@ -717,24 +743,24 @@ details.adv > .card-body{padding:18px 20px}
               <span class="hint">装了 V.Adapter：<strong>留空即可</strong>，两个扩展自动接上。只有直连官方 NovelAI / 第三方 NAI 网关才需要填。填了但连不上时，会自动回退到同页面的 V.Adapter。</span>
             </label>
             <label class="field">
-              <span class="lab"><span class="term" data-term="utype">上游类型</span></span>
+              <span class="lab"><span class="term" data-term="utype">出图服务类型</span></span>
               <select id="f-upstream_type">
                 <option value="auto">自动判断（本机服务算适配，远程一律算 NAI）</option>
                 <option value="adapter">适配服务 —— 吃自然语言（V.Adapter / 聊天画图模型）</option>
                 <option value="nai">官方 NovelAI —— 吃英文标签（含 NAI 网关 / 中转）</option>
               </select>
-              <span class="hint">决定发给上游的是「自然语言描述」还是「英文标签」。选错的典型症状：正文直出不出图、提示一句「送出形态是标签串」。
+              <span class="hint">决定发给出图服务的是「自然语言描述」还是「英文标签」。选错的典型症状：正文直出不出图、提示一句「送出的是标签串」。
               <b>适配服务部署在服务器上（远程域名）时必须手动选「适配服务」</b> —— 自动判断分不清远程的适配服务和 NAI 网关。装在本机的留「自动判断」就行。</span>
             </label>
             <label class="field">
-              <span class="lab"><span class="term" data-term="pformat">送给上游的内容</span>（提示词形态）</span>
+              <span class="lab"><span class="term" data-term="pformat">送给出图服务的内容</span>（描述还是标签）</span>
               <select id="f-prompt_format">
-                <option value="auto">自动（推荐）—— 按上游类型决定送描述还是送标签</option>
+                <option value="auto">自动（推荐）—— 按出图服务类型决定送描述还是送标签</option>
                 <option value="description">始终送自然语言描述（V.Adapter / 聊天画图模型）</option>
                 <option value="tags">始终送英文标签（官方 NovelAI / NAI 网关）</option>
-                <option value="both">两段合并送出（不确定上游时的保险选项）</option>
+                <option value="both">两段合并送出（不确定出图服务时的保险选项）</option>
               </select>
-              <span class="hint">AI 写的标记是两段式的：<span class="mono">[ILLUST: 自然语言描述 | 英文标签]</span>。这里决定取哪一段发出去。留「自动」即可，上面「上游类型」改了它就跟着对。</span>
+              <span class="hint">AI 写的标记是两段式的：<span class="mono">[ILLUST: 自然语言描述 | 英文标签]</span>。这里决定取哪一段发出去。留「自动」即可，上面「出图服务类型」改了它就跟着对。</span>
             </label>
             <label class="field">
               <span class="lab">API Key</span>
@@ -757,40 +783,47 @@ details.adv > .card-body{padding:18px 20px}
             <div><div class="card-title">出图参数</div><div class="card-desc">画多大、画多细、一次画几张</div></div>
           </div>
           <div class="card-body">
-            <div class="grid c2">
-              <label class="field"><span class="lab">宽（像素）</span><input type="number" id="f-width" min="64" max="2048" step="8"></label>
-              <label class="field"><span class="lab">高（像素）</span><input type="number" id="f-height" min="64" max="2048" step="8"></label>
-            </div>
-            <div class="grid c2">
-              <label class="field"><span class="lab"><span class="term" data-term="steps">采样步数</span></span><input type="number" id="f-steps" min="1" max="50"></label>
-              <label class="field"><span class="lab"><span class="term" data-term="cfg">CFG</span>（提示词遵循强度）</span><input type="number" id="f-scale" min="0" max="30" step="0.5"></label>
-            </div>
-            <div class="grid c2">
-              <label class="field"><span class="lab">每条回复最多出几张</span><input type="number" id="f-max_per_round" min="1" max="6">
-              <span class="hint">默认 1 张。聊天画图上游通常<b>一个账号同一时刻只能画一张</b>，第二张会在上游排队 2~3 分钟；
-              想要多图就调高张数并保持「并行出图」开启，但要接受第二张更慢。</span></label>
-              <label class="field"><span class="lab">单张超时（秒）</span><input type="number" id="f-timeout_sec" min="30" max="1800"></label>
-            </div>
             <label class="field">
-              <span class="lab">出图提示词的负面词（对扩散模型有效）</span>
-              <textarea id="f-negative" rows="2" placeholder="留空表示不加"></textarea>
-              <span class="hint">直接发给出图上游的负面词；「提示词」页那个负面词是给分析模型的，两处互不影响。</span>
+              <span class="lab">每条回复最多出几张</span>
+              <input type="number" id="f-max_per_round" min="1" max="6">
+              <span class="hint">默认 1 张。聊天画图服务通常<b>一个账号同一时刻只能画一张</b>，第二张会在服务端排队 2~3 分钟；
+              想要多图就调高张数并保持下面的「多张并行」开启，但要接受第二张更慢。</span>
             </label>
-            <div class="switch-row" style="margin-top:6px">
+            <div class="switch-row">
               <div class="sw" id="sw-parallel" data-key="parallel"></div>
               <div class="sr-text">
                 <div class="sr-lab">多张并行出图</div>
                 <div class="sr-hint">
                   <b>默认开启</b>：多张同时请求，先回来的先插入正文，不用逐张等。
-                  共享网关存在限流 / 风控时可关掉改回逐张串行（可配两张之间的间隔）。
+                  共享网关存在限流 / 风控时可关掉改回逐张串行（可配两张之间的间隔，在下方折叠区）。
                 </div>
               </div>
             </div>
-            <label class="field" style="margin-top:12px">
-              <span class="lab">相邻两张的间隔（毫秒，串行时生效）</span>
-              <input type="number" id="f-interval_ms" min="0" max="60000" step="100">
-              <span class="hint">用来躲限流；共享网关建议 0～1000。</span>
-            </label>
+            <details class="explain" style="margin-top:12px">
+              <summary>画布尺寸与画质参数（一般不用动：默认 832×1216 · 28 步 · CFG 6）</summary>
+              <div class="explain-body">
+                <div class="grid c2">
+                  <label class="field"><span class="lab">宽（像素）</span><input type="number" id="f-width" min="64" max="2048" step="8"></label>
+                  <label class="field"><span class="lab">高（像素）</span><input type="number" id="f-height" min="64" max="2048" step="8"></label>
+                </div>
+                <div class="grid c2">
+                  <label class="field"><span class="lab"><span class="term" data-term="steps">采样步数</span></span><input type="number" id="f-steps" min="1" max="50"></label>
+                  <label class="field"><span class="lab"><span class="term" data-term="cfg">CFG</span>（提示词遵循强度）</span><input type="number" id="f-scale" min="0" max="30" step="0.5"></label>
+                </div>
+                <label class="field"><span class="lab">单张超时（秒）</span><input type="number" id="f-timeout_sec" min="30" max="1800">
+                  <span class="hint">一次出图请求最多等多久，默认 300 秒，一般不用改。</span></label>
+                <label class="field">
+                  <span class="lab">出图时的负面词（对扩散模型有效）</span>
+                  <textarea id="f-negative" rows="2" placeholder="留空表示不加"></textarea>
+                  <span class="hint">直接发给出图服务的负面词；「提示词」页那个负面词是给分析模型的，两处互不影响。</span>
+                </label>
+                <label class="field">
+                  <span class="lab">相邻两张的间隔（毫秒，串行时生效）</span>
+                  <input type="number" id="f-interval_ms" min="0" max="60000" step="100">
+                  <span class="hint">用来躲限流；共享网关建议 0～1000。</span>
+                </label>
+              </div>
+            </details>
           </div>
         </div>
 
@@ -818,14 +851,14 @@ details.adv > .card-body{padding:18px 20px}
             <div class="switch-row">
               <div class="sw" id="sw-swipe_regenerate" data-key="swipe_regenerate"></div>
               <div class="sr-text">
-                <div class="sr-lab"><span class="term" data-term="swipe">swipe</span> 换回复时重新配图</div>
+                <div class="sr-lab"><span class="term" data-term="swipe">备选回复</span>换一条时重新配图</div>
                 <div class="sr-hint">关掉后，切到另一条回复会保留旧插图，可能与剧情对不上。</div>
               </div>
             </div>
             <label class="field" style="margin-top:14px">
               <span class="lab">忽略的消息类型（高级，一般不动）</span>
               <input type="text" id="f-exclude_types" placeholder="impersonate">
-              <span class="hint">逗号分隔。默认忽略 <span class="mono">impersonate</span>（AI 假装用户的发言）。</span>
+              <span class="hint">逗号分隔。默认忽略 <span class="mono">impersonate</span>（酒馆的「AI 帮答」：AI 替你写一条发言）。</span>
             </label>
           </div>
         </div>
@@ -871,7 +904,7 @@ details.adv > .card-body{padding:18px 20px}
         </div>
 
         <details class="adv" id="adv-nsfw">
-          <summary>进阶 · 分流通道（NSFW 第二出图后端）<span class="chip off" id="nsfw-chip">未启用</span>
+          <summary>进阶 · 第二出图通道（分流）<span class="chip off" id="nsfw-chip">未启用</span>
             <span class="adv-sub">主通道画不了的画面，自动改投另一个你有账号的 NovelAI 协议服务。默认关闭，完全不影响正常使用。</span>
           </summary>
           <div class="card-body">
@@ -898,7 +931,7 @@ details.adv > .card-body{padding:18px 20px}
               <label class="field" style="margin-top:14px">
                 <span class="lab">服务地址</span>
                 <input type="text" id="f-nsfw_base_url" placeholder="https://api.novelai.net　或　某个 NAI 网关地址">
-                <span class="hint">必须是 NovelAI 协议的服务（提供 <span class="mono">/ai/generate-image</span>）。分流画面<b>不会</b>回退到 V.Adapter —— 那正是这次要绕开的上游。</span>
+                <span class="hint">必须是 NovelAI 协议的服务（提供 <span class="mono">/ai/generate-image</span>）。分流画面<b>不会</b>回退到 V.Adapter —— 那正是这次要绕开的出图服务。</span>
               </label>
               <label class="field">
                 <span class="lab">API Key</span>
@@ -914,7 +947,7 @@ details.adv > .card-body{padding:18px 20px}
               </label>
               <div class="grid c2">
                 <label class="field" style="margin:0">
-                  <span class="lab">上游类型</span>
+                  <span class="lab">出图服务类型</span>
                   <select id="f-nsfw_upstream_type">
                     <option value="nai">官方 NovelAI —— 吃英文标签（默认）</option>
                     <option value="adapter">适配服务 —— 吃自然语言</option>
@@ -922,7 +955,7 @@ details.adv > .card-body{padding:18px 20px}
                   </select>
                 </label>
                 <label class="field" style="margin:0">
-                  <span class="lab">送给上游的内容</span>
+                  <span class="lab">送给出图服务的内容</span>
                   <select id="f-nsfw_prompt_format">
                     <option value="tags">送英文标签（NAI 系默认）</option>
                     <option value="description">送自然语言描述</option>
@@ -933,8 +966,8 @@ details.adv > .card-body{padding:18px 20px}
               </div>
               <label class="field" style="margin-top:14px">
                 <span class="lab">分流画面的附加提示词（拼在最前，可空）</span>
-                <textarea id="f-nsfw_prefix" rows="2" placeholder="留空 = 不加。放质量标签、画风要求之类该上游真正需要的固定内容"></textarea>
-                <span class="hint">主通道的「破限词」对分流上游没有意义（它本来就不设限），分流时不套用，用这里代替。</span>
+                <textarea id="f-nsfw_prefix" rows="2" placeholder="留空 = 不加。放质量标签、画风要求之类该出图服务真正需要的固定内容"></textarea>
+                <span class="hint">主通道的「破限词」对分流通道没有意义（它本来就不设限），分流时不套用，用这里代替。</span>
               </label>
               <label class="field">
                 <span class="lab">分流画面的负面词</span>
@@ -1067,11 +1100,10 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 
 /* ── 名词白话解释：点带虚线的词弹出 ── */
 const TERMS = {
-  marker: { t: '标记 [ILLUST: …]', d: '插件教给 AI 的「点菜暗号」：AI 在正文里写 [ILLUST: 画面描述 | 英文标签]，插件看到就画一张图插在那行下面。' },
-  pformat: { t: '送给上游的内容（提示词形态）', d: 'AI 写的标记有两段：自然语言描述 + 英文标签。扩散模型（官方 NovelAI）只认英文标签；V.Adapter / 聊天画图模型读自然语言更有效。这里决定发哪一段。' },
-  utype: { t: '上游类型', d: '告诉插件你的出图服务吃哪种输入：适配服务（V.Adapter 等）吃自然语言；官方 NovelAI / NAI 网关吃英文标签。选错的典型症状：正文直出不出图。' },
+  pformat: { t: '送给出图服务的内容（描述还是标签）', d: 'AI 写的标记有两段：自然语言描述 + 英文标签。扩散模型（官方 NovelAI）只认英文标签；V.Adapter / 聊天画图模型读自然语言更有效。这里决定发哪一段。' },
+  utype: { t: '出图服务类型', d: '告诉插件你的出图服务吃哪种输入：适配服务（V.Adapter 等）吃自然语言；官方 NovelAI / NAI 网关吃英文标签。选错的典型症状：正文直出不出图。' },
   artist: { t: '画师串', d: '一串英文画师名标签，拼在提示词最前面锁定画风。只有按标签训练的扩散模型（官方 NovelAI / NAI 网关）认识它；经 V.Adapter 出图会自动跳过。' },
-  swipe: { t: 'swipe', d: '酒馆里的左右箭头：在同一条回复的多个版本之间切换。' },
+  swipe: { t: '备选回复（swipe）', d: '酒馆里的左右箭头：在同一条回复的多个「备选回复」（酒馆官方就叫这个名字）之间切换。' },
   expand: { t: '扩写', d: '把一句话交给文字模型补充成完整的画面描述（外貌、服装、场景、画风），再拿去出图。由 V.Adapter 完成；直连官方 NAI 时没有这一步。' },
   steps: { t: '采样步数', d: '扩散模型的作画迭代次数：越多越精细越慢。默认 28 就很好；用 V.Adapter / 聊天画图模型时此项会被忽略。' },
   cfg: { t: 'CFG（引导系数）', d: '画面有多「听话」：越高越严格但容易僵硬。默认 6 即可；用 V.Adapter / 聊天画图模型时此项会被忽略。' },
@@ -1113,7 +1145,7 @@ function markImgErrors(root) {
   });
 }
 
-// 图片标签统一生成：远程图片必须显式禁用 Referer —— 上游 CDN（cdn.qwenlm.ai）有防盗链，
+// 图片标签统一生成：远程图片必须显式禁用 Referer —— 出图服务 CDN（cdn.qwenlm.ai）有防盗链，
 // 带酒馆地址的 Referer 一律 403，只放行「不带 Referer」或它自家站的 Referer。
 function imgTag(url, cls) {
   return '<img src="' + esc(url) + '"' + (cls ? ' class="' + cls + '"' : '') +
@@ -1124,7 +1156,7 @@ function thumbImg(url) {
   return imgTag(imgUrl(url));
 }
 
-// 远程链接（未落盘）的图片来自上游临时链接，随时可能失效；在面板上标注出来。
+// 远程链接（未落盘）的图片来自出图服务临时链接，随时可能失效；在面板上标注出来。
 function isRemoteUrl(u) { return /^https?:/i.test(String(u ?? '').trim()); }
 function remoteTag(u) {
   return isRemoteUrl(u) ? '<span class="tb-tag">远程链接 · 未落盘</span>' : '';
@@ -1420,7 +1452,7 @@ $('settings-search').addEventListener('input', e => {
 function kvSet(id, text) { const el = $(id); if (el) el.textContent = text; }
 
 const PROMPT_FORMAT_LABEL = {
-  auto: '自动（按上游类型判断）',
+  auto: '自动（按出图服务类型判断）',
   description: '自然语言描述',
   tags: '英文标签',
   both: '描述 + 标签合并',
@@ -1465,9 +1497,9 @@ async function refreshOverview() {
   kvSet('ov-swipe', s.swipe_regenerate ? '重新配图' : '保留旧图');
   kvSet('ov-exclude', s.exclude_types || '（无）');
 
-  // 三种出图方式的当前状态
-  kvSet('route-2-state', !d.enabled ? '总开关已关' : (s.ctx_mode === 'direct' ? '已启用' : '未启用（补图方式选了分析模型）'));
-  kvSet('route-3-state', !d.enabled ? '总开关已关' : (s.ctx_mode === 'analyze' ? '已启用' : '未启用（补图方式选了正文直出）'));
+  // 两种出图方式的当前状态
+  kvSet('route-1-state', !d.enabled ? '总开关已关' : (s.ctx_mode === 'direct' ? '已启用' : '未启用（补图方式选了分析模型）'));
+  kvSet('route-2-state', !d.enabled ? '总开关已关' : (s.ctx_mode === 'analyze' ? '已启用' : '未启用（补图方式选了正文直出）'));
 
   // 三步开始的状态
   const step1 = !!s.base_url || bridgeOk;
@@ -1497,7 +1529,7 @@ async function refreshOverview() {
 
   const wrap = $('thumbs-wrap');
   if (!imgs.length) {
-    wrap.innerHTML = '<div class="empty">本聊天还没出过图。<br>AI 输出带标记的回复、或你点一次「补一张试试」后，这里就会出现结果。</div>';
+    wrap.innerHTML = '<div class="empty">本聊天还没出过图。<br>AI 输出带标记的回复、或用「手动补图」补一张后，这里就会出现结果。</div>';
   } else {
     wrap.innerHTML = '<div class="thumbs">' + imgs.map(it =>
       '<div class="thumb">' +
@@ -1559,7 +1591,7 @@ $('btn-history-clear').onclick = async () => {
   toast('已清空');
 };
 
-/* ── 手动出图 ── */
+/* ── 测试出图 ── */
 let TR_BUSY = false;
 
 function renderTranslateResult(d) {
@@ -1567,7 +1599,7 @@ function renderTranslateResult(d) {
   $('tr-result').innerHTML =
     '<div class="tr-preview">' + imgTag(url) + '</div>' +
     '<label class="field" style="margin-top:14px">' +
-      '<span class="lab">实际送入上游的提示词（扩写后）</span>' +
+      '<span class="lab">实际送入出图服务的提示词（扩写后）</span>' +
       '<textarea id="tr-prompt" rows="6" readonly></textarea>' +
     '</label>' +
     '<div class="row" style="margin-top:10px">' +
@@ -1639,7 +1671,7 @@ $('btn-tr-gen').onclick = async () => {
   btn.textContent = old;
   if (!r.ok) {
     $('tr-err').textContent = r.error || '未知错误';
-    toast('手动出图失败', 'bad');
+    toast('测试出图失败', 'bad');
     return;
   }
   renderTranslateResult(r.data || {});
@@ -1774,6 +1806,29 @@ async function loadAll() {
   await refreshRule();
   await refreshOverview();
 }
+
+/* ── 面板主题切换（侧栏底部色点）──
+   与 body 开头那段小脚本配套：那边负责首帧前套主题，这里负责色点状态与点击。
+   只切 html[data-theme]，不碰扩展设置；桥接没连上也能换（色点不在 .content 里，不会被禁用）。 */
+(function () {
+  const KEY = 'v_canvas_panel_theme';
+  const VALID = ['', 'purple', 'pink', 'orange'];
+  const dots = document.querySelectorAll('.theme-dot');
+  function applyTheme(t) {
+    if (t) document.documentElement.dataset.theme = t;
+    else delete document.documentElement.dataset.theme;
+    dots.forEach(b => b.classList.toggle('on', (b.dataset.themeSet || '') === t));
+  }
+  let saved = '';
+  try { saved = localStorage.getItem(KEY) || ''; } catch (e) { /* 忽略 */ }
+  if (VALID.indexOf(saved) < 0) saved = '';
+  applyTheme(saved);
+  dots.forEach(b => b.addEventListener('click', () => {
+    const t = b.dataset.themeSet || '';
+    try { localStorage.setItem(KEY, t); } catch (e) { /* 忽略 */ }
+    applyTheme(t);
+  }));
+})();
 
 /* ── 启动 ── */
 (async function boot() {

@@ -178,7 +178,7 @@ export async function init() {
 // ── 悬浮入口 ──
 // 聊天页右下角的常驻小按钮，点击直达管理面板（不用去扩展抽屉里找）。
 // 两个 V 系插件共用一个停靠栏（先加载者创建，后加载者追加），
-// 图案刻意错开：Canvas 绿色 Vi / Adapter 橙色 V，一眼可辨。
+// 图案刻意错开：Canvas = 对话气泡里画一幅小画（青翠）；Adapter = 光之门拱（琥珀），一眼可辨。
 function addFabButton() {
     let dock = document.getElementById('v_fab_dock');
     if (!dock) {
@@ -196,13 +196,10 @@ function addFabButton() {
         '<svg viewBox="0 0 48 48" width="30" height="30" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         + '<defs><linearGradient id="vfab_cv_g" x1="0" y1="0" x2="1" y2="1">'
         + '<stop offset="0" stop-color="#a7f3d0"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>'
-        + '<path d="M5 20 L19 25" stroke="rgba(229,231,235,.85)" stroke-width="1.6"/>'
-        + '<path d="M21 12 L33 33 L9 33 Z" stroke="url(#vfab_cv_g)" stroke-width="1.8" fill="rgba(34,211,238,.08)"/>'
-        + '<path d="M33 24 L43 15" stroke="#f87171" stroke-width="1.7"/>'
-        + '<path d="M34 26 L45 22" stroke="#fbbf24" stroke-width="1.7"/>'
-        + '<path d="M34 28 L45 29" stroke="#34d399" stroke-width="1.7"/>'
-        + '<path d="M34 30 L43 36" stroke="#60a5fa" stroke-width="1.7"/>'
-        + '<path d="M33 32 L40 41" stroke="#c4b5fd" stroke-width="1.7"/>'
+        + '<path class="vcv-bubble" d="M13 9 H35 A6 6 0 0 1 41 15 V28 A6 6 0 0 1 35 34 H20 L13 40 V34 A6 6 0 0 1 7 28 V15 A6 6 0 0 1 13 9 Z" stroke="url(#vfab_cv_g)" stroke-width="2"/>'
+        + '<circle class="vcv-sun" cx="32.5" cy="16.5" r="2.6" fill="#fde68a"/>'
+        + '<path class="vcv-peak vcv-peak-1" pathLength="100" d="M11 28.5 L18.5 18 L25.5 28.5" stroke="url(#vfab_cv_g)" stroke-width="2.2"/>'
+        + '<path class="vcv-peak vcv-peak-2" pathLength="100" d="M23.5 28.5 L29.5 21.5 L36 28.5" stroke="url(#vfab_cv_g)" stroke-width="2.2"/>'
         + '</svg>'
         + '<span class="v_fab_label"><b>V.Canvas</b> · 剧情插画</span>';
     dock.appendChild(btn);
@@ -347,7 +344,7 @@ async function onMessageReceived(messageId, type) {
 // 本路线把「决定画什么」交给一个独立配置的 OpenAI 兼容模型，因此不依赖任何角色卡的配合。
 //
 // 产出的提示词同时包含自然语言描述与 Danbooru 标签，最终由 prompt_format 决定送哪一半，
-// 因此经 V.Adapter（OpenAI 格式上游）与直连官方 NAI / NAI 网关两条路都能用。
+// 因此经 V.Adapter（OpenAI 格式出图服务）与直连官方 NAI / NAI 网关两条路都能用。
 
 const ctxInFlight = new Set();
 
@@ -407,7 +404,7 @@ async function processContextIllustration(messageId, msg) {
     }
 }
 
-// runAnalyzePass 路线 A：分析模型读正文 → 写出图提示词 → 送上游（文 → 文 → 图）。
+// runAnalyzePass 路线 A：分析模型读正文 → 写出图提示词 → 发给出图服务（文 → 文 → 图）。
 async function runAnalyzePass(ctx, messageId, msg, cfg, signal, tag) {
     const kind = ctxAnalyzer(cfg);
     if (!kind) {
@@ -462,8 +459,8 @@ async function runAnalyzePass(ctx, messageId, msg, cfg, signal, tag) {
 // 于是被误拦。那种情况的解法是改「提示词形态」，而不是这里原先写的那句「切回分析模式」。
 function directBlockedReason(cfg) {
     if (cfg.prompt_format === 'tags') return '「提示词形态」手动选了 tags';
-    if (cfg.upstream_type === 'nai') return '「上游类型」手动选了 nai';
-    return '「提示词形态」与「上游类型」都是 auto，而出图地址不是本机'
+    if (cfg.upstream_type === 'nai') return '「出图服务类型」手动选了 nai';
+    return '「送出内容」与「出图服务类型」都是 auto，而出图地址不是本机'
         + '（auto 档只能靠地址猜：127.0.0.1 / localhost / 带 :8888 算适配服务，其余一律按 NAI 算）';
 }
 
@@ -471,7 +468,7 @@ async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
     const gate = resolvePromptMode(cfg.prompt_format, cfg.base_url, cfg.upstream_type);
     if (!directAppliesTo(gate)) {
         const why = '正文直出送的是自然语言正文，当前却被判成「标签串」（' + directBlockedReason(cfg) + '）。'
-            + '如果你的地址其实指向适配服务（吃自然语言），把「设置」页的「上游类型」选成 adapter'
+            + '如果你的地址其实指向适配服务（吃自然语言），把「设置」页的「出图服务类型」选成 adapter'
             + '（或把「提示词形态」改成 description）即可；'
             + '确实是直连官方 NAI 才需要切回「分析模型」模式';
         warn(`${tag} ${why}`);
@@ -525,7 +522,7 @@ async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
     }
 
     // ── 未命中分流：正文直出（文 → 图），支持按「每轮上限」出多张 ──
-    // 多张的实现是「开多个窗口」：把正文按段切成若干份，每张独立送一次上游，
+    // 多张的实现是「开多个窗口」：把正文按段切成若干份，每张独立送一次出图服务，
     // 第 1 张画前段、第 2 张画中段…… 每张内容天然不同，而不是同一段重复画 N 遍。
     const maxN = Math.min(6, Math.max(1, cfg.max_per_round | 0));
     const chunks = splitProseChunks(body, maxN);
@@ -552,7 +549,7 @@ async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
     }
     if (!items.length) { finishProgress('正文为空，跳过', false); return; }
 
-    log(`${tag} 正文直出 ${items.length} 张（${[...body].length} 字，按段切分，每张独立送生图上游）`);
+    log(`${tag} 正文直出 ${items.length} 张（${[...body].length} 字，按段切分，每张单独发给出图服务）`);
     showProgress(`正在绘制插画 1/${items.length} … 约 30~60 秒/张，可以先聊别的`);
 
     // 直出多张用 applyProseMarkers：每张插到对应段落下，而不是全部挂末尾。
@@ -785,9 +782,9 @@ function applyDisplay(ctx, messageId, msg, st) {
 /**
  * drawMarkers 执行一批出图任务，每张成功后立即单独落位。
  *
- * 串行（parallel 关闭，默认）：逐个请求。上游限制并发或存在风控时适用。
+ * 串行（parallel 关闭，默认）：逐个请求。出图服务限制并发或存在风控时适用。
  * 并行（parallel 开启）：同时发起全部请求，各自 await，先返回的先落位 ——
- *   不等其他请求，也不等整批结束。适用于允许并发的上游。
+ *   不等其他请求，也不等整批结束。适用于允许并发的出图服务。
  *
  * 两种模式下每张成功后都会立刻重渲染该条消息，因此第一张一出来就能看到，
  * 不会被尚未完成的第二张拖住。失败互不影响：一张失败不中断其余请求。
@@ -844,8 +841,8 @@ async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMo
                 mode: resolvePromptMode(cfg.nsfw_prompt_format, cfg.nsfw_base_url, cfg.nsfw_upstream_type),
                 negative: cfg.nsfw_negative || cfg.negative,
                 bridge: false,
-                // 分流上游本身不设内容限制，「生图破限词」对它没有意义 ——
-                // 那是为受限上游准备的，拼过去只会污染画面。这里改用分流专用前缀。
+                // 分流出图服务本身不设内容限制，「生图破限词」对它没有意义 ——
+                // 那是为受限出图服务准备的，拼过去只会污染画面。这里改用分流专用前缀。
                 prefix: cfg.nsfw_prefix,
                 label: '分流',
             };
@@ -966,7 +963,7 @@ async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMo
 
             const subFolder = ctx.name2 || '';
             const fileName = `illust_${Date.now()}_${m.index}`;
-            // url 存在 = 上游远程链接降级结果（无本地字节），直接引用，不落盘
+            // url 存在 = 出图服务远程链接降级结果（无本地字节），直接引用，不落盘
             const url = result.gen.url ?? await saveBase64AsFile(result.gen.base64, subFolder, fileName, result.gen.extension);
             st.urls[m.index] = url;
             ok++;
@@ -1183,7 +1180,7 @@ function showPromptOverlay({ messageId, index, marker }) {
 
 // hardenChatIllustrationImages 给正文里的插图 <img> 补上 referrerpolicy="no-referrer"。
 //
-// 为什么需要：上游 CDN（cdn.qwenlm.ai）有防盗链，带酒馆 Referer 的请求一律 403。
+// 为什么需要：出图服务 CDN（cdn.qwenlm.ai）有防盗链，带酒馆 Referer 的请求一律 403。
 // 面板里的 <img> 可以直接写属性；正文走 markdown 渲染，属性带不上
 // （渲染管线会过滤），只能在 DOM 渲染后补——并重赋一次 src，
 // 强制以新策略重新发起请求（首次请求可能已按默认策略发出并 403）。
@@ -1536,7 +1533,7 @@ function maskKey(k) {
     return r.length <= 4 ? r[0] + '***' : r.slice(0, 3).join('') + '***' + r.slice(-2).join('');
 }
 
-// upstreamKind 概览页显示的上游类型描述。
+// upstreamKind 概览页显示的出图服务类型描述。
 function upstreamKind(base, model) {
     const b = String(base ?? '');
     if (!b) return '未配置';
@@ -1663,7 +1660,7 @@ function installBridge() {
                         return { ok: false, error: '未配置 NAI 服务地址：装了 V.Adapter 会自动直连；否则请填写一个 NovelAI 协议服务地址' };
                     }
 
-                    // 「自动尺寸」依赖上游的扩写能力（V.Adapter 的 expand=1）。
+                    // 「自动尺寸」依赖出图服务的扩写能力（V.Adapter 的 expand=1）。
                     // 地址不是本地适配服务时扩写不会发生，此时回退用设置页的出图参数，避免上报 0 尺寸。
                     const followRecommended = payload?.sizeMode !== 'fixed' && isLocalUpstream(c.base_url);
 
@@ -1684,9 +1681,9 @@ function installBridge() {
                     });
 
                     const ctx = getContext();
-                    // url 存在 = 上游远程链接降级结果（无本地字节），直接引用，不落盘
+                    // url 存在 = 出图服务远程链接降级结果（无本地字节），直接引用，不落盘
                     const url = gen.url ?? await saveBase64AsFile(gen.base64, ctx.name2 || '', `translate_${Date.now()}`, gen.extension);
-                    log(`转译出图完成 → ${url}（${followRecommended ? '跟随转译推荐尺寸' : '设置页尺寸'}）`);
+                    log(`测试出图完成 → ${url}（${followRecommended ? '跟随扩写推荐尺寸' : '设置页尺寸'}）`);
                     return { ok: true, data: { url, prompt: gen.prompt || text } };
                 }
 
@@ -1695,7 +1692,7 @@ function installBridge() {
                     const c = s();
                     // 正文直出不经分析模型，没有可连、可测的对象。
                     if (c.ctx_mode === 'direct') {
-                        return { ok: true, data: { message: '正文直出模式不使用分析模型 —— 正文会原样送给出图上游，不需要测试' } };
+                        return { ok: true, data: { message: '正文直出模式不使用分析模型 —— 正文会原样发给出图服务，不需要测试' } };
                     }
                     // 跟随酒馆主 API 时不存在「连不上」的情况 —— 主 API 能正常聊天即代表可用，
                     // 没必要为此多花一次调用。直接回报当前生效的模型即可。
@@ -1733,7 +1730,7 @@ function installBridge() {
                             const gate = resolvePromptMode(c.prompt_format, c.base_url, c.upstream_type);
                             if (!directAppliesTo(gate)) {
                                 const why = '当前送出形态被判成「标签串」（' + directBlockedReason(c) + '）'
-                                    + ' —— 地址若指向适配服务，把「设置」页的「上游类型」选成 adapter'
+                                    + ' —— 地址若指向适配服务，把「设置」页的「出图服务类型」选成 adapter'
                                     + '（或把「提示词形态」改成 description）即可';
                                 finishProgress('正文直出已跳过：' + why, true);
                                 return { ok: false, error: why };
