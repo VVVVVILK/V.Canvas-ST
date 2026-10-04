@@ -766,7 +766,9 @@ details.adv > .card-body{padding:18px 20px}
               <label class="field"><span class="lab"><span class="term" data-term="cfg">CFG</span>（提示词遵循强度）</span><input type="number" id="f-scale" min="0" max="30" step="0.5"></label>
             </div>
             <div class="grid c2">
-              <label class="field"><span class="lab">每条回复最多出几张</span><input type="number" id="f-max_per_round" min="1" max="6"></label>
+              <label class="field"><span class="lab">每条回复最多出几张</span><input type="number" id="f-max_per_round" min="1" max="6">
+              <span class="hint">默认 1 张。聊天画图上游通常<b>一个账号同一时刻只能画一张</b>，第二张会在上游排队 2~3 分钟；
+              想要多图就调高张数并保持「并行出图」开启，但要接受第二张更慢。</span></label>
               <label class="field"><span class="lab">单张超时（秒）</span><input type="number" id="f-timeout_sec" min="30" max="1800"></label>
             </div>
             <label class="field">
