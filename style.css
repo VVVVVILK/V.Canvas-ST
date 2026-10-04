@@ -227,6 +227,45 @@
     opacity: 0.55;
 }
 
+/* 可编辑提示词 + 重新生成（点击插图 → 浮层里改提示词 → 换一张） */
+#v_canvas_prompt_overlay .v_canvas_prompt_ta {
+    width: 100%;
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 9px 11px;
+    border-radius: 8px;
+    border: 1px solid rgba(127, 127, 127, 0.35);
+    background: rgba(127, 127, 127, 0.1);
+    color: var(--SmartThemeBodyColor, #e5e7eb);
+    font-family: inherit;
+    resize: vertical;
+    outline: none;
+}
+
+#v_canvas_prompt_overlay .v_canvas_prompt_ta:focus {
+    border-color: rgba(16, 185, 129, 0.6);
+}
+
+#v_canvas_prompt_overlay .v_canvas_prompt_ta.mono {
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12.5px;
+}
+
+#v_canvas_prompt_overlay .v_canvas_prompt_actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+
+#v_canvas_prompt_overlay .v_canvas_prompt_status {
+    font-size: 12px;
+    opacity: 0.75;
+    line-height: 1.5;
+    min-width: 0;
+}
+
 /* ── 5. 扩展抽屉（仅名称 + 版本 + 一个按钮）── */
 #v_canvas_drawer .v_canvas_version {
     font-size: 11px;

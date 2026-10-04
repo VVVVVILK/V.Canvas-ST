@@ -18,7 +18,7 @@ import {
     initSettings, settingsGet, applyPatch, isTypeExcluded, defaultSettings, recordHistory, clearHistory,
     saveArtistPresets,
 } from './lib/settings.js';
-import { findMarkers, hasMarkers, stripMarkers, buildDisplayText, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream, redistributeMarkers } from './lib/marker.js';
+import { findMarkers, hasMarkers, stripMarkers, buildDisplayText, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream, redistributeMarkers, buildMarkerRaw } from './lib/marker.js';
 import { generateIllustration, testConnection } from './lib/nai-api.js';
 import {
     applyMarkers, resolveCtxSource, applyProseMarker, applyProseMarkers, buildDirectProse, directAppliesTo,
@@ -982,19 +982,49 @@ function closePromptOverlay() {
     }
 }
 
+// ── 重新生成（点击插图 → 浮层里可改提示词 → 换一张）──
+//
+// 只重画指定的那一张：标记在 st.src 中的位置与顺序不动，urls[index] 原地覆盖 ——
+// 旧图会一直显示到新图落位，失败则保留旧图，生成记录里会多出一条新图。
+// 若正文里还有标记原文（strip_marker 关闭的标记路线），同步替换正文里的那一段，
+// 避免 src 与 mes 脱钩后被 effectiveSource 判成 reset 把插图状态清掉。
+async function regenerateIllustration({ messageId, index, desc, tags }) {
+    if (isGenerating()) throw new Error('酒馆正在生成回复，请等这一轮结束后再重新生成');
+    const cfg = s();
+    const ctx = getContext();
+    const msg = ctx.chat?.[Number(messageId)];
+    const st = msg?.extra?.illust;
+    if (!msg || !st || !Array.isArray(st.urls) || !st.src) throw new Error('这条消息没有插图状态，无法重新生成');
+    const markers = findMarkers(String(st.src));
+    const marker = markers[Number(index)];
+    if (!marker) throw new Error('找不到对应的标记（正文可能被编辑过）');
+
+    const newRaw = buildMarkerRaw(desc, tags);
+    if (!newRaw) throw new Error('描述和标签不能同时为空');
+    if (newRaw !== marker.raw) {
+        st.src = st.src.slice(0, marker.start) + newRaw + st.src.slice(marker.end);
+        const mes = String(msg.mes ?? '');
+        if (mes.includes(marker.raw)) msg.mes = mes.replace(marker.raw, newRaw);
+    }
+    const fresh = findMarkers(String(st.src))[Number(index)];
+    if (!fresh) throw new Error('替换后的标记无法解析');
+
+    const promptMode = resolvePromptMode(cfg.prompt_format, cfg.base_url, cfg.upstream_type);
+    const signal = beginRun();
+    try {
+        const { ok, errors } = await drawMarkers(ctx, messageId, msg, st, [fresh], cfg, signal, promptMode, false);
+        await finishMessage(ctx, messageId, msg, st, ok, errors);
+        return { okCount: ok, error: errors[0] ?? null };
+    } finally {
+        endRun();
+    }
+}
+
 // showPromptOverlay 打开提示词浮层（DOM 即时创建，关闭即销毁，不写入聊天记录）。
+// 提示词可编辑：「重新生成这张」按当前（编辑后的）描述与标签重画这一张，
+// 原图原地替换 —— 位置与顺序不动；不满意可以再点，直到满意为止。
 function showPromptOverlay({ messageId, index, marker }) {
     closePromptOverlay();
-
-    const section = (label, value, mono) => {
-        const body = value
-            ? escapeHtml(value)
-            : '<span class="v_canvas_prompt_none">（标记中未提供）</span>';
-        return `<div class="v_canvas_prompt_section">`
-            + `<div class="v_canvas_prompt_lab">${label}</div>`
-            + `<div class="v_canvas_prompt_text${mono ? ' mono' : ''}">${body}</div>`
-            + `</div>`;
-    };
 
     const el = document.createElement('div');
     el.id = PROMPT_OVERLAY_ID;
@@ -1005,11 +1035,44 @@ function showPromptOverlay({ messageId, index, marker }) {
                 <button type="button" class="menu_button v_canvas_prompt_close">关闭</button>
             </div>
             <div class="v_canvas_prompt_body">
-                ${section('自然语言描述', marker.desc, false)}
-                ${section('Danbooru 标签', marker.tags, true)}
+                <div class="v_canvas_prompt_section">
+                    <div class="v_canvas_prompt_lab">自然语言描述（可改）</div>
+                    <textarea class="v_canvas_prompt_ta" rows="5" data-role="desc"
+                        placeholder="（空 = 只用下面的标签）">${escapeHtml(marker.desc || '')}</textarea>
+                </div>
+                <div class="v_canvas_prompt_section">
+                    <div class="v_canvas_prompt_lab">Danbooru 标签（可改）</div>
+                    <textarea class="v_canvas_prompt_ta mono" rows="4" data-role="tags"
+                        placeholder="（空 = 只用上面的描述）">${escapeHtml(marker.tags || '')}</textarea>
+                </div>
+                <div class="v_canvas_prompt_actions">
+                    <button type="button" class="menu_button v_canvas_prompt_regen">重新生成这张</button>
+                    <span class="v_canvas_prompt_status">不满意就改提示词点「重新生成」；直接点 = 同提示词换一张。约 30~60 秒。</span>
+                </div>
             </div>
         </div>`;
     document.body.appendChild(el);
+
+    el.querySelector('.v_canvas_prompt_regen').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        const status = el.querySelector('.v_canvas_prompt_status');
+        const desc = el.querySelector('[data-role="desc"]').value;
+        const tags = el.querySelector('[data-role="tags"]').value;
+        btn.disabled = true;
+        status.textContent = '正在重新生成… 约 30~60 秒（顶部进度卡可终止）';
+        try {
+            const r = await regenerateIllustration({ messageId, index, desc, tags });
+            if (r.okCount > 0) {
+                status.textContent = '✓ 已重新生成并替换。还不满意？改改提示词再来一次。';
+            } else {
+                status.textContent = '失败：' + (r.error || '未知原因');
+            }
+        } catch (err) {
+            status.textContent = '失败：' + String(err?.message ?? err).slice(0, 200);
+        } finally {
+            btn.disabled = false;
+        }
+    });
 
     el.addEventListener('click', (e) => {
         if (e.target === el || e.target.closest('.v_canvas_prompt_close')) closePromptOverlay();

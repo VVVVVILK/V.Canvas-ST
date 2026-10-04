@@ -79,7 +79,7 @@ const server = http.createServer((req, res) => {
 await new Promise(r => server.listen(18999, '127.0.0.1', r));
 
 const { generateIllustration, testConnection } = await import('../lib/nai-api.js');
-const { findMarkers, buildDisplayText, stripMarkers, hasMarkers, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream, MAX_MARKER_LEN, redistributeMarkers, isTailClustered } = await import('../lib/marker.js');
+const { findMarkers, buildDisplayText, stripMarkers, hasMarkers, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream, MAX_MARKER_LEN, redistributeMarkers, isTailClustered, buildMarkerRaw } = await import('../lib/marker.js');
 const { detectNsfw, parseWords, buildWordList } = await import('../lib/nsfw.js');
 const { parseAnalysisJSON, applyMarkers, findAnchor, buildAnalysisMessages, buildAnalysisParts, analysisTokenBudget, resolveCtxSource, directAppliesTo, buildDirectProse, proseToMarker, applyProseMarker, applyProseMarkers, splitProseChunks, interiorAnchor, pickDirectAnchor, DIRECT_PROSE_MAX, DIRECT_GUIDE, pickProseAnchor } = await import('../lib/analysis.js');
 const { artistAppliesTo, artistPromptFor, withArtistPrompt, sanitizeArtistPrompt, sanitizeArtistName, ARTIST_PROMPT_MAX } = await import('../lib/artist.js');
@@ -489,6 +489,28 @@ report.push('', '== 正文直出（文生图）==');
     ok('multi path: exactly one marker per chunk', findMarkers(twoSrc).length === 2, String(findMarkers(twoSrc).length));
     ok('multi path: no marker sits at the very bottom of the message',
         findMarkers(twoSrc).every(m => twoSrc.slice(m.end).trim().length > 0));
+
+    // ── 重新生成：buildMarkerRaw（点击插图 → 改提示词 → 重建标记）──
+    const regenTwo = buildMarkerRaw('银发少女在雨夜街头', '1girl, silver hair, rain');
+    ok('regen: two parts keep the desc | tags shape', /^\[ILLUST: 银发少女在雨夜街头 \| 1girl, silver hair, rain\]$/.test(regenTwo));
+    const regenTwoParsed = findMarkers(regenTwo);
+    ok('regen: two-part marker parses with both halves',
+        regenTwoParsed.length === 1 && regenTwoParsed[0].desc === '银发少女在雨夜街头' && regenTwoParsed[0].tags === '1girl, silver hair, rain');
+    ok('regen: selectPrompt still routes both halves',
+        selectPrompt(regenTwoParsed[0], 'description') === '银发少女在雨夜街头' && selectPrompt(regenTwoParsed[0], 'tags') === '1girl, silver hair, rain');
+    const regenDescOnly = buildMarkerRaw('只有描述', '');
+    ok('regen: desc-only becomes a single-part marker', regenDescOnly === '[ILLUST: 只有描述]' && findMarkers(regenDescOnly).length === 1);
+    const regenTagsOnly = buildMarkerRaw('', '1girl, solo');
+    ok('regen: tags-only becomes a single-part marker', regenTagsOnly === '[ILLUST: 1girl, solo]' && findMarkers(regenTagsOnly).length === 1);
+    ok('regen: both empty is rejected', buildMarkerRaw('', '') === '' && buildMarkerRaw(null, null) === '');
+    const dirty = buildMarkerRaw('描述\n带换行 | 带竖线 [带方括号]', '');
+    const dirtyInner = dirty.slice('[ILLUST: '.length, -1);
+    ok('regen: newlines/pipes/brackets are neutralized', !/[\n|[\]]/.test(dirtyInner) && findMarkers(dirty).length === 1, dirty);
+    const overlong = buildMarkerRaw('长'.repeat(2000), '');
+    ok('regen: overlong marker is clamped under the guard line', overlong.length <= MAX_MARKER_LEN && findMarkers(overlong).length === 1);
+    // 与直出/分析产物同一套显示链路：重建的标记必须能被就地替换消费
+    const regenDisplay = buildDisplayText('前文。\n\n' + regenTwo + '\n\n后文。', ['img'], 'Illustration', 'drop');
+    ok('regen: rebuilt marker is consumable by the display pipeline', /!\[Illustration\]\(img\)/.test(regenDisplay ?? ''));
 }
 
 report.push('', '== 画师串 ==');
