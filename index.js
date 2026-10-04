@@ -434,6 +434,9 @@ async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
     if (!chunks.length) { finishProgress('正文为空，跳过', false); return; }
 
     // 每份正文单独拼上内置作画指令与画风，落点取该份正文在原文中的位置。
+    // WARN: 字段必须是 prose —— applyProseMarkers 只认它；此前这里写成 desc，
+    //       全部条目被过滤丢弃 → src 里没有标记 → 整轮报「没有可插入的标记」。
+    //       症状：每轮上限 ≥2 且正文切得出多段时必失败，单段（单张路径）正常。
     const items = [];
     let cursor = 0;
     for (const chunk of chunks) {
@@ -446,7 +449,7 @@ async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
         });
         if (!prose.trim()) continue;
         const at = body.indexOf(chunk, cursor);
-        items.push({ desc: prose, at: at >= 0 ? at + chunk.length : -1 });
+        items.push({ prose, at: at >= 0 ? at + chunk.length : -1 });
         cursor = at >= 0 ? at + chunk.length : cursor;
     }
     if (!items.length) { finishProgress('正文为空，跳过', false); return; }
@@ -457,7 +460,7 @@ async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
     // 直出多张用 applyProseMarkers：每张插到对应段落下，而不是全部挂末尾。
     // 单张时走 applyProseMarker（用启发式落点或末尾，行为与旧版一致）。
     const src = items.length === 1
-        ? applyProseMarker(body, items[0].desc, cfg.ctx_direct_place === 'end' ? -1 : pickProseAnchor(body))
+        ? applyProseMarker(body, items[0].prose, cfg.ctx_direct_place === 'end' ? -1 : pickProseAnchor(body))
         : applyProseMarkers(body, items);
     await runIllustration(ctx, messageId, msg, items, signal, { direct: true, src });
 }

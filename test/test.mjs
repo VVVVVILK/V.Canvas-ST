@@ -81,7 +81,7 @@ await new Promise(r => server.listen(18999, '127.0.0.1', r));
 const { generateIllustration, testConnection } = await import('../lib/nai-api.js');
 const { findMarkers, buildDisplayText, stripMarkers, hasMarkers, effectiveSource, resolvePromptMode, selectPrompt, isLocalUpstream, MAX_MARKER_LEN, redistributeMarkers, isTailClustered } = await import('../lib/marker.js');
 const { detectNsfw, parseWords, buildWordList } = await import('../lib/nsfw.js');
-const { parseAnalysisJSON, applyMarkers, findAnchor, buildAnalysisMessages, buildAnalysisParts, analysisTokenBudget, resolveCtxSource, directAppliesTo, buildDirectProse, proseToMarker, applyProseMarker, DIRECT_PROSE_MAX, DIRECT_GUIDE, pickProseAnchor } = await import('../lib/analysis.js');
+const { parseAnalysisJSON, applyMarkers, findAnchor, buildAnalysisMessages, buildAnalysisParts, analysisTokenBudget, resolveCtxSource, directAppliesTo, buildDirectProse, proseToMarker, applyProseMarker, applyProseMarkers, splitProseChunks, DIRECT_PROSE_MAX, DIRECT_GUIDE, pickProseAnchor } = await import('../lib/analysis.js');
 const { artistAppliesTo, artistPromptFor, withArtistPrompt, sanitizeArtistPrompt, sanitizeArtistName, ARTIST_PROMPT_MAX } = await import('../lib/artist.js');
 
 let pass = 0, fail = 0;
@@ -443,6 +443,21 @@ report.push('', '== 正文直出（文生图）==');
     ok('end-to-end direct source parses to exactly one marker', findMarkers(e2e).length === 1);
     ok('end-to-end marker survives the rehydrate count check',
         findMarkers(e2e).length === 1 && findMarkers(e2e)[0].desc.length > 0);
+
+    // ── 直出多张：applyProseMarkers 的条目形状（回归「没有可插入的标记」）──
+    // runDirectPass 以 { prose, at } 传参；历史上写成 { desc, at } 会被整批过滤，
+    // src 里没有标记 → 整轮报「没有可插入的标记」。两种形状都必须能落位。
+    const multiBody = '前段的叙述，雪落在灯罩上。\n\n中段的叙述，风从门缝里挤进来。\n\n末段的叙述，刀尖依然指着地面。';
+    const chunks = splitProseChunks(multiBody, 3);
+    ok('multi-chunk split yields 3 chunks', chunks.length === 3, String(chunks.length));
+    const shaped = chunks.map((c, i) => ({ prose: '[载荷] ' + c, at: multiBody.indexOf(c, 0) + c.length }));
+    const multiSrc = applyProseMarkers(multiBody, shaped);
+    ok('multi prose-shaped items place one marker per chunk', findMarkers(multiSrc).length === 3, String(findMarkers(multiSrc).length));
+    ok('multi markers parse with the payload intact', findMarkers(multiSrc).every(m => m.desc.includes('载荷')));
+    const legacyShaped = chunks.map(c => ({ desc: '[载荷] ' + c, at: -1 }));
+    const legacySrc = applyProseMarkers(multiBody, legacyShaped);
+    ok('legacy desc-shaped items are tolerated (3 markers)', findMarkers(legacySrc).length === 3, String(findMarkers(legacySrc).length));
+    ok('empty item list leaves the body alone', applyProseMarkers(multiBody, []) === multiBody);
 }
 
 report.push('', '== 画师串 ==');

@@ -487,11 +487,12 @@ details.adv > .card-body{padding:18px 20px}
         </div>
       </section>
 
-      <!-- ── 转译出图 ── -->
+      <!-- ── 手动出图 ── -->
       <section class="page" id="page-translate">
         <div class="page-head">
           <h1>手动出图</h1>
-          <p><b>这一页是干嘛的：</b>不聊天、就想单独画一张 —— 输一句话，出一张图。<b>只在面板里预览，不写进聊天记录</b>；想画进聊天用酒馆的 <span class="mono">/vgen</span>（V.Adapter 的命令）或直接聊出标记来。</p>
+          <p><b>这一页是干嘛的：</b><b>测试出图链路通不通</b> —— 输一句话画一张，成功就说明「在酒馆里聊天会自动配图」这条路是通的（与 V.Adapter 的「测试连接」等价，测的就是同一条链路）。
+          平时聊天用不上这一页；它也可以顺手单独画一张，<b>结果只在面板里展示，不写进聊天记录</b>。</p>
         </div>
 
         <div class="card">
@@ -510,7 +511,7 @@ details.adv > .card-body{padding:18px 20px}
               <span class="hint">「自动」依赖适配服务的扩写能力；直连官方 NAI 时扩写不会发生，请选「用设置页的尺寸」。</span>
             </label>
             <div class="row">
-              <button class="btn primary" id="btn-tr-gen">出图</button>
+              <button class="btn primary" id="btn-tr-gen">出图（测试链路）</button>
             </div>
             <div class="err" id="tr-err"></div>
           </div>
@@ -518,8 +519,10 @@ details.adv > .card-body{padding:18px 20px}
 
         <div class="card">
           <div class="card-head">
-            <div><div class="card-title">结果</div><div class="card-desc">仅在本面板内展示</div></div>
-            <button class="btn sm" id="btn-tr-copy">复制提示词</button>
+            <div><div class="card-title">结果</div><div class="card-desc">仅在本面板内展示，可下载</div></div>
+            <div class="row">
+              <button class="btn sm" id="btn-tr-copy">复制提示词</button>
+            </div>
           </div>
           <div class="card-body">
             <div id="tr-result"><div class="empty">还没画过。在上面输入一句话，点「出图」。</div></div>
@@ -968,7 +971,11 @@ details.adv > .card-body{padding:18px 20px}
           </div>
         </details>
 
-        <details class="adv" id="adv-vsig">
+        <!-- V站 专属密钥签名：这是 V站 配套的内部机制（vcs_ 密钥自动签名、盐自动跟随站点），
+             auto 档下用户无需任何配置，因此对使用者隐藏。字段保留在 DOM 中：
+             面板契约检查要求每个设置项都有对应控件，且高级用户仍可在 devtools 里调整。
+             自部署 V站 改过 exclusiveSalt 的极少数场景，直接在酒馆设置文件里改即可。 -->
+        <details class="adv" id="adv-vsig" hidden>
           <summary>进阶 · V站 专属密钥签名<span class="chip off" id="vsig-chip">不生效</span>
             <span class="adv-sub">密钥是 vcs_ 开头（V站 专属密钥）时才需要；用官方 NAI / 其他中转时整块无关。一般保持默认。</span>
           </summary>
@@ -1224,17 +1231,10 @@ function syncCtxSourceUI() {
   if (box) box.style.display = (sel && sel.value === 'custom') ? '' : 'none';
 }
 
-// V站签名块：密钥是 vcs_ 开头时展开提示，否则保持折叠并显示「不生效」。
+// V站签名块已对使用者隐藏（见 adv-vsig 处的注释）：auto 档自动完成签名与换盐，
+// 用户不需要也不应该看到这个开关。字段仍随 fillForm 读写，逻辑不变。
 function syncVsigUI() {
-  const key = (SETTINGS && SETTINGS.api_key) || '';
-  const relevant = /^vcs_/i.test(String(key).trim());
-  const adv = $('adv-vsig');
-  if (!adv) return;
-  const chip = $('vsig-chip');
-  const mode = (SETTINGS && SETTINGS.sign_mode) || 'auto';
-  if (!relevant) { if (chip) { chip.textContent = '不生效（密钥不是 vcs_ 专属密钥）'; chip.className = 'chip off'; } adv.open = false; return; }
-  if (chip) { chip.textContent = mode === 'off' ? '已关闭（专属密钥会被 403）' : '对当前密钥生效'; chip.className = 'chip ' + (mode === 'off' ? 'off' : 'ok'); }
-  if (mode !== 'off') adv.open = true;
+  /* intentionally hidden from the UI */
 }
 
 /* ── 画师串 ──
@@ -1555,10 +1555,56 @@ function renderTranslateResult(d) {
       '<textarea id="tr-prompt" rows="6" readonly></textarea>' +
     '</label>' +
     '<div class="row" style="margin-top:10px">' +
-      '<a class="btn sm" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">在新标签页打开</a>' +
+      '<a class="btn sm" id="btn-tr-dl" href="javascript:void(0)">准备下载…</a>' +
+      '<a class="btn sm ghost" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">在新标签页打开</a>' +
     '</div>';
   $('tr-prompt').value = d.prompt || '';
   markImgErrors($('tr-result'));
+  setDownloadLink($('btn-tr-dl'), url, 'canvas_' + Date.now() + '.png');
+}
+
+// ── 下载链接统一走 Blob（与 V.Adapter 面板同一套方案）──
+// data:URL 超 Chrome 约 2MB 会下载失败；跨域远程图的 download 属性会被忽略、
+// 点击把面板导航到原图。Blob 两者都避；取不到字节的远程图退化为新标签页打开。
+let lastDownloadUrl = null;
+
+async function setDownloadLink(a, url, filename) {
+  if (lastDownloadUrl) { try { URL.revokeObjectURL(lastDownloadUrl); } catch (e) { /* 忽略 */ } lastDownloadUrl = null; }
+  a.removeAttribute('download');
+  a.removeAttribute('target');
+  a.removeAttribute('rel');
+  a.removeAttribute('href');
+  a.textContent = '准备下载…';
+  const fallback = () => {
+    a.textContent = '在新标签页打开（右键图片可另存为）';
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+  };
+  let href = '';
+  try {
+    if (/^data:/i.test(url)) {
+      href = URL.createObjectURL(await (await fetch(url)).blob());
+    } else if (/^https?:/i.test(url)) {
+      try {
+        const resp = await fetch(url, { referrerPolicy: 'no-referrer' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        href = URL.createObjectURL(await resp.blob());
+      } catch (e) {
+        fallback();
+        return;
+      }
+    } else {
+      href = url;   // 同源相对路径（酒馆落盘的本地图片），直接可下载
+    }
+  } catch (e) {
+    fallback();
+    return;
+  }
+  lastDownloadUrl = href;
+  a.href = href;
+  a.setAttribute('download', filename);
+  a.textContent = '下载图片';
 }
 
 $('btn-tr-gen').onclick = async () => {
