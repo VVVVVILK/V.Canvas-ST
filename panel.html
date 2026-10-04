@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>V.Canvas</title>
+<title>V.Canvas 管理面板</title>
 <style>
 /* 深色主题，独立于酒馆主题；设计语言与 V.Adapter 面板保持一致。 */
 :root{
@@ -36,12 +36,14 @@ a{color:var(--primary)}
 .brand-name{font-size:16px;font-weight:700}
 .brand-sub{margin-top:8px;font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted-fg)}
 .sidebar-nav{flex:1;padding:14px 12px;display:flex;flex-direction:column;gap:4px;overflow-y:auto}
-.nav-btn{position:relative;width:100%;display:flex;align-items:center;gap:11px;padding:9px 12px;border:none;border-radius:8px;background:transparent;color:var(--muted-fg);font-size:13.5px;font-weight:500;cursor:pointer;text-align:left;font-family:inherit;transition:background .15s,color .15s}
+.nav-btn{position:relative;width:100%;display:flex;flex-direction:column;gap:2px;padding:9px 12px;border:none;border-radius:8px;background:transparent;color:var(--muted-fg);font-size:13.5px;font-weight:500;cursor:pointer;text-align:left;font-family:inherit;transition:background .15s,color .15s}
+.nav-btn small{font-size:11px;font-weight:400;color:hsl(217 12% 48%)}
 .nav-btn:hover{background:hsl(222 18% 17% / .7);color:var(--fg)}
 .nav-btn.active{background:hsl(152 65% 45% / .1);color:var(--fg)}
-.nav-btn.active:before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);height:20px;width:3px;border-radius:999px;background:var(--primary)}
+.nav-btn.active small{color:hsl(217 12% 62%)}
+.nav-btn.active:before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);height:22px;width:3px;border-radius:999px;background:var(--primary)}
 .sidebar-foot{padding:14px 16px;border-top:1px solid hsl(222 14% 22% / .6);display:flex;flex-direction:column;gap:10px}
-.pill{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;color:var(--primary);background:hsl(160 84% 39% / .1);border:1px solid hsl(160 84% 39% / .2);padding:3px 9px;border-radius:999px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;color:var(--primary);background:hsl(160 84% 39% / .1);border:1px solid hsl(160 84% 39% / .2);padding:3px 9px;border-radius:999px;align-self:flex-start}
 .pill.off{color:var(--danger);background:hsl(0 72% 58% / .1);border-color:hsl(0 72% 58% / .25)}
 .pill.warn{color:var(--warning);background:hsl(38 92% 50% / .1);border-color:hsl(38 92% 50% / .28)}
 .pdot{width:6px;height:6px;border-radius:50%;background:currentColor}
@@ -58,9 +60,10 @@ a{color:var(--primary)}
 .page.active{display:flex}
 .page-head h1{font-size:24px;font-weight:700;letter-spacing:-.02em}
 .page-head p{margin-top:6px;font-size:13px;color:var(--muted-fg);line-height:1.6}
+.page-head p b{color:var(--fg)}
 .card{background:var(--card);border:1px solid var(--border);border-radius:calc(var(--radius) + .125rem);overflow:hidden}
 .card-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
-.card-title{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+.card-title{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .card-desc{margin-top:3px;font-size:12px;color:var(--muted-fg)}
 .card-body{padding:18px 20px}
 .grid{display:grid;gap:16px}
@@ -109,13 +112,13 @@ input[type=number]{-moz-appearance:textfield}
 .code{display:block;padding:8px 10px;border-radius:8px;background:hsl(222 26% 8%);border:1px solid var(--border);font-size:12px;word-break:break-all}
 .muted{color:var(--muted-fg)}
 .err{color:var(--danger);font-size:12.5px;line-height:1.6;word-break:break-word}
-/* 开关行（本面板新增，沿用同一套配色） */
+/* 开关行 */
 .switch-row{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px dashed hsl(222 14% 22% / .7)}
 .switch-row:last-child{border-bottom:none}
 .switch-row .sr-text{flex:1;min-width:0}
 .switch-row .sr-lab{font-size:13px;font-weight:600}
 .switch-row .sr-hint{margin-top:3px;font-size:11.5px;color:var(--muted-fg);line-height:1.55}
-.sw{position:relative;flex:none;width:42px;height:24px;border-radius:999px;background:hsl(222 16% 26%);border:1px solid var(--border);cursor:pointer;transition:background .18s}
+.sw{position:relative;flex:none;width:42px;height:24px;border-radius:999px;background:hsl(222 16% 26%);border:1px solid var(--border);cursor:pointer;transition:background .18s;margin-top:2px}
 .sw:after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:hsl(217 12% 78%);transition:transform .18s,background .18s}
 .sw.on{background:hsl(152 65% 40%);border-color:hsl(152 65% 45% / .5)}
 .sw.on:after{transform:translateX(18px);background:#fff}
@@ -128,7 +131,6 @@ input[type=number]{-moz-appearance:textfield}
 .thumb .tb-meta b{color:var(--fg);font-weight:600}
 .tb-tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:700;color:var(--warning);background:hsl(38 92% 50% / .12);border:1px solid hsl(38 92% 50% / .3)}
 .empty{padding:26px 0;text-align:center;font-size:12.5px;color:var(--muted-fg);line-height:1.7}
-/* 图片加载失败的可见占位：附上原始地址，便于直接判断是路径问题还是文件问题 */
 .img-broken{padding:12px;font-size:11.5px;line-height:1.6;color:var(--danger);background:hsl(0 72% 58% / .08);border:1px dashed hsl(0 72% 58% / .35);border-radius:8px;word-break:break-all}
 .img-broken b{display:block;margin-bottom:4px;font-size:12.5px}
 /* 转译出图结果 */
@@ -143,18 +145,69 @@ input[type=number]{-moz-appearance:textfield}
 #bridge-warn{display:none;margin:14px 0 0;padding:14px 16px;border-radius:10px;border:1px solid hsl(0 72% 58% / .45);background:hsl(0 72% 58% / .1);color:var(--fg);font-size:13px;line-height:1.7}
 #bridge-warn.show{display:block}
 #bridge-warn b{color:var(--danger)}
-/* 画师串列表：每条是一个自足的小块（名字 + 内容 + 删除），整体重绘，故用事件委托绑监听 */
+/* 画师串列表 */
 .artist-item{margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
 .artist-item:first-child{margin-top:8px}
 .artist-head{display:flex;gap:8px;align-items:center;margin-bottom:8px}
 .artist-head input{flex:1;min-width:0}
 .artist-item textarea{width:100%;resize:vertical}
-/* 需要用户看清的说明块。字号与正文同为 14px、行高更松 —— 用户明确要求「看得清清楚楚」 */
-.notice{margin-bottom:16px;padding:16px 18px;border-radius:10px;border:1px solid hsl(200 80% 55% / .4);background:hsl(200 80% 55% / .09);font-size:14px;line-height:1.9}
-.notice:last-child{margin-bottom:0}
-.notice b{color:var(--info)}
-.notice.warn{border-color:hsl(38 92% 50% / .45);background:hsl(38 92% 50% / .09)}
-.notice.warn b{color:var(--warning)}
+/* ── 本次可用性优化新增组件 ── */
+/* 名词解释：虚线下划线的词，点开有白话解释 */
+.term{font-style:normal;border-bottom:1px dashed hsl(200 80% 55% / .55);cursor:help}
+.term-pop{position:fixed;z-index:70;max-width:340px;padding:12px 14px;border-radius:10px;border:1px solid hsl(200 80% 55% / .45);background:hsl(222 26% 10% / .98);box-shadow:0 14px 40px rgb(0 0 0 / .5);font-size:12.5px;line-height:1.7;color:var(--fg)}
+.term-pop b{color:var(--info);display:block;margin-bottom:4px;font-size:13px}
+.term-pop .close{margin-top:8px;font-size:11px;color:var(--muted-fg)}
+/* 折叠的详解块：默认收起，页面保持安静 */
+details.explain{border:1px solid var(--border);border-radius:10px;background:hsl(222 26% 9% / .5);margin:10px 0}
+details.explain summary{padding:10px 14px;font-size:12.5px;font-weight:600;color:var(--muted-fg);cursor:pointer;list-style:none;user-select:none}
+details.explain summary::-webkit-details-marker{display:none}
+details.explain summary:before{content:"▸ ";color:var(--info)}
+details.explain[open] summary:before{content:"▾ "}
+details.explain[open] summary{border-bottom:1px dashed hsl(222 14% 22% / .7)}
+details.explain .explain-body{padding:12px 16px;font-size:13px;line-height:1.9;color:var(--fg)}
+details.explain .explain-body b{color:var(--info)}
+details.explain.warn{border-color:hsl(38 92% 50% / .4)}
+details.explain.warn summary{color:hsl(38 92% 60%)}
+details.explain.warn .explain-body b{color:var(--warning)}
+/* 折叠的「高级」区块（分流通道 / V站签名） */
+details.adv{border:1px solid var(--border);border-radius:calc(var(--radius) + .125rem);background:var(--card);overflow:hidden}
+details.adv > summary{padding:16px 20px;font-size:15px;font-weight:600;cursor:pointer;list-style:none;user-select:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+details.adv > summary::-webkit-details-marker{display:none}
+details.adv > summary:before{content:"▸ ";color:var(--info)}
+details.adv[open] > summary:before{content:"▾ "}
+details.adv[open] > summary{border-bottom:1px solid var(--border)}
+details.adv .adv-sub{margin:0 20px 0;color:var(--muted-fg);font-size:12px;font-weight:400;display:block;margin-top:3px;flex-basis:100%}
+details.adv > .card-body{padding:18px 20px}
+/* 卡片右上角的状态角标 */
+.chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+.chip.must{color:var(--warning);background:hsl(38 92% 50% / .12);border:1px solid hsl(38 92% 50% / .35)}
+.chip.adv{color:var(--muted-fg);background:hsl(222 14% 22% / .5);border:1px solid var(--border)}
+.chip.ok{color:var(--success);background:hsl(142 71% 45% / .12);border:1px solid hsl(142 71% 45% / .25)}
+.chip.off{color:var(--muted-fg);background:hsl(222 14% 22% / .5);border:1px solid var(--border)}
+/* 快速开始清单 */
+.qs-step{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px dashed hsl(222 14% 22% / .7)}
+.qs-step:last-child{border-bottom:none}
+.qs-dot{flex:none;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;margin-top:1px}
+.qs-step.done .qs-dot{background:hsl(142 71% 45% / .18);color:var(--success)}
+.qs-step.todo .qs-dot{background:hsl(38 92% 50% / .15);color:var(--warning)}
+.qs-step .qs-body{flex:1;min-width:0}
+.qs-step .qs-title{font-size:13.5px;font-weight:600}
+.qs-step.done .qs-title{color:var(--muted-fg)}
+.qs-step .qs-hint{margin-top:3px;font-size:12px;color:var(--muted-fg);line-height:1.6}
+.qs-step .qs-act{margin-top:8px}
+/* 三种出图方式对照 */
+.route{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px dashed hsl(222 14% 22% / .7)}
+.route:last-child{border-bottom:none}
+.route .r-no{flex:none;width:22px;height:22px;border-radius:6px;background:hsl(200 80% 55% / .12);color:var(--info);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;margin-top:1px}
+.route .r-body{flex:1;min-width:0}
+.route .r-title{font-size:13.5px;font-weight:600}
+.route .r-flow{margin-top:3px;font-size:12.5px;color:var(--fg);line-height:1.6}
+.route .r-hint{margin-top:3px;font-size:11.5px;color:var(--muted-fg);line-height:1.55}
+/* 设置页搜索框 */
+.search-box{position:relative}
+.search-box input{padding-left:34px}
+.search-box .icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted-fg);pointer-events:none}
+.search-empty{padding:14px;font-size:12.5px;color:var(--muted-fg);display:none}
 </style>
 </head>
 <body>
@@ -166,15 +219,15 @@ input[type=number]{-moz-appearance:textfield}
         <div class="brand-mark">Vi</div>
         <div><div class="brand-name">V.Canvas</div></div>
       </div>
-      <div class="brand-sub">VILK</div>
+      <div class="brand-sub">剧情插画 · VILK</div>
     </div>
     <nav class="sidebar-nav">
-      <button class="nav-btn active" data-page="overview">概览</button>
-      <button class="nav-btn" data-page="history">生成记录</button>
-      <button class="nav-btn" data-page="prompt">提示词</button>
-      <button class="nav-btn" data-page="translate">转译出图</button>
-      <button class="nav-btn" data-page="context">上下文出图</button>
-      <button class="nav-btn" data-page="settings">设置</button>
+      <button class="nav-btn active" data-page="overview">概览<small>第一次用？从这页开始</small></button>
+      <button class="nav-btn" data-page="history">生成记录<small>画过的所有图</small></button>
+      <button class="nav-btn" data-page="prompt">提示词<small>画风、质量词、画师串</small></button>
+      <button class="nav-btn" data-page="translate">手动出图<small>输入一句话画一张</small></button>
+      <button class="nav-btn" data-page="context">自动补图<small>正文没标记时怎么画</small></button>
+      <button class="nav-btn" data-page="settings">设置<small>出图渠道、尺寸、触发规则</small></button>
     </nav>
     <div class="sidebar-foot">
       <span class="pill" id="pill"><span class="pdot"></span><span id="pill-text">检查中…</span></span>
@@ -203,35 +256,98 @@ input[type=number]{-moz-appearance:textfield}
       <section class="page active" id="page-overview">
         <div class="page-head">
           <h1>概览</h1>
-          <p>插件状态、当前上游与本会话已生成的插图。所有改动直接写入酒馆（改数据 → 刷界面 → 持久化）。</p>
+          <p><b>这一页是干嘛的：</b>看插件配好没有、图是怎么自动画出来的。第一次使用，先看「三步开始」；想弄懂它什么时候画图，看「三种出图方式」。</p>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">三步开始</div><div class="card-desc">跟着状态走，全打勾就能自动配图了</div></div></div>
+          <div class="card-body">
+            <div class="qs-step" id="qs-step-1">
+              <div class="qs-dot">1</div>
+              <div class="qs-body">
+                <div class="qs-title">接好出图渠道（图由谁来画）</div>
+                <div class="qs-hint" id="qs-1-hint">装了 V.Adapter 就什么都不用填；否则去「设置」页填一个 NovelAI 协议服务地址。</div>
+                <div class="qs-act"><button class="btn sm" id="qs-goto-settings">去设置 →</button></div>
+              </div>
+            </div>
+            <div class="qs-step" id="qs-step-2">
+              <div class="qs-dot">2</div>
+              <div class="qs-body">
+                <div class="qs-title">确认「自动插画」总开关是开的</div>
+                <div class="qs-hint">默认就是开的。关掉后插件完全不动。</div>
+              </div>
+            </div>
+            <div class="qs-step" id="qs-step-3">
+              <div class="qs-dot">3</div>
+              <div class="qs-body">
+                <div class="qs-title">手动试一张，确认整条链路通</div>
+                <div class="qs-hint">去「手动出图」页输一句话试画；或等下一轮 AI 回复自动配图。</div>
+                <div class="qs-act"><button class="btn sm" id="qs-goto-translate">去试一张 →</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">三种出图方式（它什么时候会画图）</div><div class="card-desc">三种方式并存，互不打架；出图渠道和尺寸是共用的</div></div></div>
+          <div class="card-body">
+            <div class="route">
+              <div class="r-no">①</div>
+              <div class="r-body">
+                <div class="r-title">AI 自己点菜（最快，优先）</div>
+                <div class="r-flow">AI 回复里写了 <span class="mono">[ILLUST: 画面描述 | 标签]</span> <span class="term" data-term="marker">标记</span> → 插件看到就地画一张，插在那一行下面。</div>
+                <div class="r-hint">规则由插件自动教给 AI（「设置 → 提示词注入」）。总开关开着就生效。</div>
+              </div>
+            </div>
+            <div class="route">
+              <div class="r-no">②</div>
+              <div class="r-body">
+                <div class="r-title">正文直出（默认的补图方式）</div>
+                <div class="r-flow">AI 没写标记 → 把这条回复的原文直接交给画图模型：「就画这段里最有画面感的瞬间」。</div>
+                <div class="r-hint">不多花一次模型调用，装好就能用。要求出图上游读得懂自然语言（V.Adapter / 聊天画图模型）。<b>当前：<span id="route-2-state">-</span></b></div>
+              </div>
+            </div>
+            <div class="route">
+              <div class="r-no">③</div>
+              <div class="r-body">
+                <div class="r-title">分析模型补图（直连官方 NAI 用这条）</div>
+                <div class="r-flow">AI 没写标记 → 先让一个文字模型读正文，挑画面、写提示词、定插图位置 → 再交给画图模型。</div>
+                <div class="r-hint">多一次模型调用，但位置更准、可一张回复配多张；官方 NAI 只认英文标签，必须走这条。<b>当前：<span id="route-3-state">-</span></b></div>
+              </div>
+            </div>
+            <div class="muted" style="font-size:12px;margin-top:10px;line-height:1.7">
+              方式②和③在「自动补图」页二选一；另有「手动出图」页随时手画一张（不进聊天）。
+              分流通道（NSFW 第二出图后端）在「设置」页底部的进阶区。
+            </div>
+          </div>
         </div>
 
         <div class="grid c3">
           <div class="stat" id="stat-enabled-box"><div class="v" id="stat-enabled">-</div><div class="k">自动插画</div></div>
-          <div class="stat"><div class="v" id="stat-upstream">-</div><div class="k">当前上游</div></div>
-          <div class="stat"><div class="v" id="stat-images">-</div><div class="k">本会话已出图</div></div>
+          <div class="stat"><div class="v" id="stat-upstream">-</div><div class="k">出图渠道</div></div>
+          <div class="stat"><div class="v" id="stat-images">-</div><div class="k">本聊天已出图</div></div>
         </div>
 
         <div class="grid c2">
           <div class="card">
-            <div class="card-head"><div><div class="card-title">上游</div><div class="card-desc">出图服务的地址与参数</div></div></div>
+            <div class="card-head"><div><div class="card-title">出图渠道</div><div class="card-desc">图由谁画、画多大</div></div></div>
             <div class="card-body">
-              <div class="kv"><span class="k">NAI 服务地址</span><span class="v mono" id="ov-base">-</span></div>
+              <div class="kv"><span class="k">服务地址</span><span class="v mono" id="ov-base">-</span></div>
               <div class="kv"><span class="k">API Key</span><span class="v mono" id="ov-key">-</span></div>
               <div class="kv"><span class="k">模型名</span><span class="v mono" id="ov-model">-</span></div>
-              <div class="kv"><span class="k">分辨率 / 步数 / CFG</span><span class="v mono" id="ov-params">-</span></div>
-              <div class="kv"><span class="k">送给上游的内容</span><span class="v" id="ov-prompt-format">-</span></div>
+              <div class="kv"><span class="k">尺寸 / 步数 / CFG</span><span class="v mono" id="ov-params">-</span></div>
+              <div class="kv"><span class="k"><span class="term" data-term="pformat">送给上游的内容</span></span><span class="v" id="ov-prompt-format">-</span></div>
             </div>
           </div>
 
           <div class="card">
-            <div class="card-head"><div><div class="card-title">触发规则</div><div class="card-desc">什么时候会自动出图</div></div></div>
+            <div class="card-head"><div><div class="card-title">触发规则</div><div class="card-desc">什么时候画、一张回复画几张</div></div></div>
             <div class="card-body">
               <div class="kv"><span class="k">每条回复最多</span><span class="v" id="ov-max">-</span></div>
-              <div class="kv"><span class="k">规则注入</span><span class="v" id="ov-inject">-</span></div>
-              <div class="kv"><span class="k">上下文出图</span><span class="v" id="ov-ctx">-</span></div>
-              <div class="kv"><span class="k">正文里剔除 tag</span><span class="v" id="ov-strip">-</span></div>
-              <div class="kv"><span class="k">swipe 换回复时重新配图</span><span class="v" id="ov-swipe">-</span></div>
+              <div class="kv"><span class="k">把出图规则教给 AI</span><span class="v" id="ov-inject">-</span></div>
+              <div class="kv"><span class="k">自动补图（无标记时）</span><span class="v" id="ov-ctx">-</span></div>
+              <div class="kv"><span class="k">标记是否进入 AI 上下文</span><span class="v" id="ov-strip">-</span></div>
+              <div class="kv"><span class="k"><span class="term" data-term="swipe">swipe</span> 换回复时重新配图</span><span class="v" id="ov-swipe">-</span></div>
               <div class="kv"><span class="k">忽略的消息类型</span><span class="v mono" id="ov-exclude">-</span></div>
             </div>
           </div>
@@ -239,7 +355,7 @@ input[type=number]{-moz-appearance:textfield}
 
         <div class="card">
           <div class="card-head">
-            <div><div class="card-title">本聊天已生成的插画</div><div class="card-desc">直接从当前会话消息读取，非缓存</div></div>
+            <div><div class="card-title">本聊天已生成的插画</div><div class="card-desc">直接读取当前聊天消息，点图可看原图</div></div>
             <button class="btn sm" id="btn-refresh-overview">刷新</button>
           </div>
           <div class="card-body">
@@ -252,7 +368,7 @@ input[type=number]{-moz-appearance:textfield}
       <section class="page" id="page-history">
         <div class="page-head">
           <h1>生成记录</h1>
-          <p>本插件出过的全部插画，按时间倒序排列。记录保存在酒馆设置中，切聊天、换角色或重开酒馆后仍可查阅；点击图片可在新标签页打开原图。</p>
+          <p><b>这一页是干嘛的：</b>所有画过的图都在这，按时间倒序，换聊天、重开酒馆也不丢。图裂了/想回看，来这。</p>
         </div>
 
         <div class="card">
@@ -273,138 +389,100 @@ input[type=number]{-moz-appearance:textfield}
       <section class="page" id="page-prompt">
         <div class="page-head">
           <h1>提示词</h1>
-          <p>
-            此处填写的内容会随正文一并交给「上下文出图」的分析模型，作为其撰写出图提示词的依据。
-            三栏均可留空，长度不限；留空时由分析模型依据作品与正文自行判定。
-          </p>
+          <p><b>这一页是干嘛的：</b>告诉画图的人（分析模型 / 直出时的画图模型）「画风要什么、画质要什么、不要出现什么」。
+          <b>全部可以留空</b>——留空时由模型自己按作品判定。想固定画风，填「画风」那一栏最有效。</p>
         </div>
 
         <div class="card">
           <div class="card-head">
-            <div><div class="card-title">正面质量提示词</div><div class="card-desc">画质与画面要素要求</div></div>
+            <div><div class="card-title">画风 <span class="chip must">想固定画风就填这栏</span></div><div class="card-desc">整张图的美术风格基调</div></div>
             <button class="btn sm" id="btn-prompt-reload">重新载入</button>
           </div>
           <div class="card-body">
             <label class="field">
-              <span class="lab">正面质量提示词</span>
-              <textarea id="f-ctx_quality" rows="10" placeholder="留空 = 由分析模型自行决定。可写自然语言，也可写英文 Danbooru 标签，例如：masterpiece, best quality, ultra detailed"></textarea>
+              <span class="lab">画风（留空 = 模型按作品自动判定）</span>
+              <textarea id="f-ctx_style" rows="6" placeholder="例如：日式动画赛璐璐画风、平涂上色、暖色调；或英文：cel shading, retro anime style"></textarea>
               <span class="hint">
-                作为强制约束下发：分析模型产出的描述与标签必须体现此处要求的画质与要素，
-                其中的措辞与标签会被直接沿用。需要补充细节时由分析模型自行补全，
-                补充内容不得与此处的既有要求冲突。
+                填了就按你写的来，模型不再自作主张。写具体一点（流派、笔触、色彩、年代感）画面越稳定。
+                角色长相、服装不用写在这里 —— 模型会照着剧情正文还原。
               </span>
             </label>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><div><div class="card-title">负面提示词</div><div class="card-desc">需要规避的内容</div></div></div>
-          <div class="card-body">
-            <label class="field">
-              <span class="lab">负面提示词</span>
-              <textarea id="f-ctx_negative" rows="8" placeholder="留空 = 不设置排除项。例如：lowres, bad anatomy, watermark, modern clothing"></textarea>
-              <span class="hint">
-                作为排除项下发：其中列出的内容不得出现在分析模型产出的描述与标签中。
-                此处仅作用于上下文出图路线；直接发给出图上游的负面词在「设置」页的「出图参数」中配置。
-              </span>
-            </label>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><div><div class="card-title">画风</div><div class="card-desc">美术风格要求</div></div></div>
-          <div class="card-body">
-            <label class="field">
-              <span class="lab">画风</span>
-              <textarea id="f-ctx_style" rows="8" placeholder="留空 = 由分析模型按作品自动判定；如：日式动画赛璐璐画风、厚涂、暖色调"></textarea>
-              <span class="hint">
-                填写后即作为最终画风，分析模型不再替换为自行判定的风格。
-                可写明画风流派、笔触、色彩倾向与时代质感，描述越具体，画面越稳定。
-                角色与服装无需在此指定 —— 由分析模型依据正文与前文判断。
-              </span>
-            </label>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><div><div class="card-title">破限词（选填）</div><div class="card-desc">分析模型或出图上游拒绝血腥 / 成人向内容时使用；两个模型的破限内容不同，因此分成两栏</div></div></div>
-          <div class="card-body">
-            <label class="field">
-              <span class="lab">分析模型破限词（上下文出图）</span>
-              <textarea id="f-jb_llm" rows="8" placeholder="留空 = 完全不生效。用于正文含血腥、成人向内容时，避免分析模型拒答产出提示词。"></textarea>
-              <span class="hint">
-                填写后原样拼入分析模型的<b>每次请求</b>（正文之前）。针对的是「读文字的模型」拒答 ——
-                内容形式通常是写给模型看的附加说明。
-              </span>
-            </label>
-            <label class="field" style="margin-top:14px">
-              <span class="lab">生图破限词（出图上游）</span>
-              <textarea id="f-jb_image" rows="8" placeholder="留空 = 完全不生效。用于出图上游拒绝生成某些画面时。"></textarea>
-              <span class="hint">
-                填写后原样拼到<b>出图提示词的最前面</b>（自动插画与转译出图均生效）。
-                它的实质是一个<b>提示词前缀</b>，不是万能钥匙。
-              </span>
-            </label>
-            <div class="notice warn">
-              <b>它能起多大作用，完全取决于「拒绝」发生在哪一层 —— 先看清，别指望它一定能解掉审核</b>
-              <br>· <b>模型自身拒答</b>（靠指令对齐的模型，例如聊天画图模型、多模态模型）：
-              <b>有机会</b>被提示词影响 —— 这是本栏唯一真正有作用点的情况，但<b>不保证成功</b>。
-              <br>· <b>扩散模型的过滤器</b>（直连官方 NAI / 本地 SD / ComfyUI）：
-              模型本身不会「拒答」，起作用的是服务端或采样器旁的过滤器。措辞周旋有时有效；
-              但若它按标签命中名单，那看的是你的标签、不是你写的前缀 —— 这时<b>怎么措辞都没用</b>。
-              另外本地 ComfyUI / SD 通常本就没有审核，<b>填了不会有坏处，但也没有意义</b>。
-              <br>· <b>平台级硬过滤</b>（图像 API 自带的内容策略、或对出图结果再做一次的安全分类）：
-              <b>基本无用</b> —— 请求在服务端就被拦下，模型根本轮不到，提示词怎么写都不会放行。
-              <br><b>那为什么直连官方 NAI「不需要」这一栏？</b>
-              因为<b>扩散模型没有「拒答」这个环节</b> —— 它不做语言理解，只是按你的提示词采样出图，
-              压根不存在「我不画这个」的判断可以被打动；官方付费订阅本身也允许成人向内容。
-              所以直连 NAI 时这一栏基本是多余的：万一真被拦，那是<b>过滤器或中转站</b>在做，
-              对策是改措辞或换线路，而不是「破限」。
-              <br>所以本栏的准确定位是「<b>有机会影响上游的拒答</b>」，请当成一个可选的提示词前缀来理解。
-              反复尝试还可能触发上游风控，<b>合规与账号风险由使用者自行承担</b>。
-            </div>
-            <div class="muted" style="font-size:12px;line-height:1.65;margin-top:10px">
-              本插件不内置任何内容，两栏为空时与未添加本功能完全相同；填写内容与用途由使用者自行把握，
-              对上游服务的合规与账号风险亦由使用者自行承担。
-            </div>
           </div>
         </div>
 
         <div class="card">
           <div class="card-head">
-            <div><div class="card-title">画师串</div><div class="card-desc">只在「直连官方 NAI / NAI 网关」时生效</div></div>
-            <button class="btn sm" id="btn-artist-add">新增一条</button>
+            <div><div class="card-title">正面质量提示词</div><div class="card-desc">画质要求（可留空）</div></div>
           </div>
           <div class="card-body">
-            <div class="notice">
-              <b>为什么只有一部分人用得上</b>
-              两条出图链路拿到的东西根本不同：
-              <br>· <b>直连官方 NovelAI / NAI 网关</b>（扩散模型）：送出去的是<b>标签串</b>，
-              画师串拼在画面 tag 之前，用来锁定整幅画的画风基调。
-              <br>· <b>经 V.Adapter（OpenAI 格式上游）</b>：送出去的是<b>自然语言描述</b>，
-              而且图是<b>上游模型自己画完、把成品交回来的</b>，并不是 NAI 那种「按你的提示词逐帧采样现画」。
-              往一段描述里塞画师名只会污染描述，所以这条链路<b>会自动跳过画师串</b>。
-            </div>
             <label class="field">
-              <span class="lab">当前使用的画师串</span>
-              <select id="f-active_artist"></select>
-              <span class="hint">选「不使用」即完全不拼。切换后下一次出图生效 —— 已经画好的图不会重画。</span>
+              <span class="lab">画质要求（自然语言或英文标签都行）</span>
+              <textarea id="f-ctx_quality" rows="6" placeholder="留空 = 不额外要求。例如：masterpiece, best quality, ultra detailed"></textarea>
+              <span class="hint">作为强制要求下发：产出的提示词必须体现这里的画质与要素。</span>
             </label>
-            <div id="artist-list"></div>
           </div>
         </div>
 
         <div class="card">
-          <div class="card-head"><div><div class="card-title">作用范围与请求方式</div><div class="card-desc">上面质量词 / 负面词 / 画风三栏的生效方式</div></div></div>
+          <div class="card-head"><div><div class="card-title">负面提示词</div><div class="card-desc">画面里不要出现什么（可留空）</div></div></div>
           <div class="card-body">
-            <div class="muted" style="font-size:12.5px;line-height:1.8">
-              这三栏只作用于<b>上下文出图</b>路线 —— 它们是发给<b>分析模型</b>的要求。
-              标记驱动路线下，提示词由剧情模型直接写在正文的
-              <span class="mono">[ILLUST: …]</span> 中，不经过此处。
-              <br>分析模型每次请求都是一次全新的单轮对话，不携带历史轮次；
-              本页填写的内容会随每次请求完整发送，不会被后续对话稀释或覆盖。
-              <br><b>画师串不在这三栏之内</b>：它拼在发往<b>出图上游</b>的提示词里，作用方式见上一张卡片。
-            </div>
+            <label class="field">
+              <span class="lab">要排除的内容</span>
+              <textarea id="f-ctx_negative" rows="4" placeholder="留空 = 不排除任何内容。例如：lowres, bad anatomy, watermark, modern clothing"></textarea>
+              <span class="hint">
+                对「读文字的模型」说「不要出现 X」偶尔会有反向提示的副作用 —— 画面反而出现 X。
+                遇到就把这栏清空（本来就默认留空，填不填由你决定）。
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">破限词（选填）</div><div class="card-desc">模型拒答血腥 / 成人向内容时，拼在请求前面试图说服它的话；本插件不内置任何内容</div></div></div>
+          <div class="card-body">
+            <label class="field">
+              <span class="lab">给「读正文的分析模型」的破限词</span>
+              <textarea id="f-jb_llm" rows="5" placeholder="留空 = 完全不生效。分析模型看到血腥、成人向正文拒绝干活时，在这里写附加说明。"></textarea>
+              <span class="hint">填了会拼进分析模型的每次请求。只影响「读文字」的那一步。</span>
+            </label>
+            <label class="field" style="margin-top:14px">
+              <span class="lab">给「画图上游」的破限词</span>
+              <textarea id="f-jb_image" rows="5" placeholder="留空 = 完全不生效。出图上游拒绝画某些画面时使用。"></textarea>
+              <span class="hint">填了会拼到出图提示词最前面（自动插画和手动出图都生效）。实质只是个提示词前缀，<b>不保证有效</b>。</span>
+            </label>
+            <details class="explain warn">
+              <summary>它能起多大作用？先看「拒绝」发生在哪一层（点开详解）</summary>
+              <div class="explain-body">
+                · <b>模型自己拒答</b>（聊天画图模型这类）：<b>有机会</b>被前缀影响 —— 这是唯一真正有用的场景，但不保证成功。<br>
+                · <b>扩散模型的过滤器</b>（直连官方 NAI / 本地 SD）：模型不会「拒答」，拦你的是过滤器；若它按标签命中名单，看的是你的标签不是前缀，<b>怎么措辞都没用</b>。本地 ComfyUI / SD 通常本来就没有审核，填了也没意义。<br>
+                · <b>平台级硬过滤</b>（API 服务商的内容策略）：<b>基本无用</b> —— 请求在服务端就被拦下，模型根本轮不到。<br>
+                直连官方 NAI 基本不需要这栏：扩散模型没有「拒答」环节，官方付费订阅本身允许成人向内容。<br>
+                反复尝试可能触发上游风控，<b>合规与账号风险由使用者自行承担</b>。
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title"><span class="term" data-term="artist">画师串</span>（画风配方）</div><div class="card-desc">只在直连官方 NovelAI / NAI 网关时生效；经 V.Adapter 出图会自动跳过</div></div>
+            <button class="btn sm" id="btn-artist-add">新增一条</button>
+          </div>
+          <div class="card-body">
+            <details class="explain">
+              <summary>为什么经 V.Adapter 出图时它没用？（点开详解）</summary>
+              <div class="explain-body">
+                两条链路拿到的东西根本不同：<br>
+                · <b>直连官方 NovelAI / NAI 网关</b>（扩散模型）送出去的是<b>英文标签串</b>，画师串拼在标签最前面锁定画风。<br>
+                · <b>经 V.Adapter</b>（OpenAI 格式上游）送出去的是<b>自然语言描述</b>，图是上游模型自己画完交回来的 —— 往描述里塞英文画师名只会污染描述，所以插件<b>自动跳过</b>。
+              </div>
+            </details>
+            <label class="field">
+              <span class="lab">当前使用</span>
+              <select id="f-active_artist"></select>
+              <span class="hint">选「不使用」即完全不拼。切换后下一次出图生效，已画好的图不会重画。</span>
+            </label>
+            <div id="artist-list"></div>
           </div>
         </div>
       </section>
@@ -412,30 +490,27 @@ input[type=number]{-moz-appearance:textfield}
       <!-- ── 转译出图 ── -->
       <section class="page" id="page-translate">
         <div class="page-head">
-          <h1>转译出图</h1>
-          <p>输入一句简短描述，由适配服务先扩写为完整画面提示词再出图。本页与自动插画流程相互独立，结果只在面板内展示，不写入聊天记录。</p>
+          <h1>手动出图</h1>
+          <p><b>这一页是干嘛的：</b>不聊天、就想单独画一张 —— 输一句话，出一张图。<b>只在面板里预览，不写进聊天记录</b>；想画进聊天用酒馆的 <span class="mono">/vgen</span>（V.Adapter 的命令）或直接聊出标记来。</p>
         </div>
 
         <div class="card">
-          <div class="card-head"><div><div class="card-title">输入</div><div class="card-desc">角色名、场景短语均可</div></div></div>
+          <div class="card-head"><div><div class="card-title">输入</div><div class="card-desc">角色名、场景短语都可以；出图前会先由适配服务把这句话<span class="term" data-term="expand">扩写</span>成完整提示词</div></div></div>
           <div class="card-body">
             <label class="field">
-              <span class="lab">简短描述</span>
+              <span class="lab">描述</span>
               <textarea id="tr-text" rows="3" placeholder="例如：哆啦A梦里面的野比玉子 ／ 雨夜霓虹街头的银发少女"></textarea>
             </label>
             <label class="field">
               <span class="lab">尺寸</span>
               <select id="tr-size-mode">
-                <option value="auto">自动 — 跟随转译推荐的尺寸</option>
-                <option value="fixed">使用「设置」页的出图参数</option>
+                <option value="auto">自动 — 跟随扩写推荐的尺寸</option>
+                <option value="fixed">用「设置」页的尺寸</option>
               </select>
-              <span class="hint">
-                扩写由适配服务执行（V.Adapter 的 <span class="mono">expand=1</span>），「自动」尺寸同样取自扩写结果。
-                若服务地址直连官方 NAI 或 NAI 网关，扩写不会发生，请改用下面一项。
-              </span>
+              <span class="hint">「自动」依赖适配服务的扩写能力；直连官方 NAI 时扩写不会发生，请选「用设置页的尺寸」。</span>
             </label>
             <div class="row">
-              <button class="btn primary" id="btn-tr-gen">转译并出图</button>
+              <button class="btn primary" id="btn-tr-gen">出图</button>
             </div>
             <div class="err" id="tr-err"></div>
           </div>
@@ -447,7 +522,7 @@ input[type=number]{-moz-appearance:textfield}
             <button class="btn sm" id="btn-tr-copy">复制提示词</button>
           </div>
           <div class="card-body">
-            <div id="tr-result"><div class="empty">尚未生成。</div></div>
+            <div id="tr-result"><div class="empty">还没画过。在上面输入一句话，点「出图」。</div></div>
           </div>
         </div>
       </section>
@@ -455,27 +530,23 @@ input[type=number]{-moz-appearance:textfield}
       <!-- ── 上下文出图 ── -->
       <section class="page" id="page-context">
         <div class="page-head">
-          <h1>上下文出图</h1>
-          <p>
-            角色回复里没有 <span class="mono">[ILLUST: …]</span> 标记时，由插件自动补图 —— 不依赖剧情模型配合，适用于各类角色卡。
-            <b>默认即开启，且默认使用酒馆主 API —— 装好就能用，无需配置。</b>
-            补图有两种方式：让分析模型把正文翻成出图提示词，或把正文原样送上游（真正的文生图）。
-          </p>
+          <h1>自动补图</h1>
+          <p><b>这一页是干嘛的：</b>AI 的回复里<b>没有</b> <span class="mono">[ILLUST:…]</span> 标记时，插件怎么自动补一张图。
+          <b>默认已开启、默认「正文直出」—— 装好就能用，什么都不用配。</b>只有直连官方 NovelAI 才需要往下改成「分析模型」。</p>
         </div>
 
         <div class="card">
           <div class="card-head">
-            <div><div class="card-title">总开关</div><div class="card-desc">默认开启：角色回复里没有标记时自动走这条路线</div></div>
+            <div><div class="card-title">总开关</div><div class="card-desc">关掉后：正文没标记就完全不出图</div></div>
             <button class="btn sm" id="btn-ctx-reload">重新载入</button>
           </div>
           <div class="card-body">
             <div class="switch-row">
               <div class="sw" id="sw-ctx_enabled" data-key="ctx_enabled"></div>
               <div class="sr-text">
-                <div class="sr-lab">启用上下文出图</div>
+                <div class="sr-lab">启用自动补图</div>
                 <div class="sr-hint">
-                  与标记驱动路线并存且互不重复：正文已含 <span class="mono">[ILLUST: …]</span> 时走标记路线；
-                  不含标记时才调用分析模型。<b>默认开启，装好即可用</b>。
+                  和「AI 自己点菜」并存不重复：正文里有标记走标记路线，没标记才走这里。<b>默认开启</b>。
                 </div>
               </div>
             </div>
@@ -484,114 +555,62 @@ input[type=number]{-moz-appearance:textfield}
 
         <div class="card">
           <div class="card-head">
-            <div><div class="card-title">补图方式</div><div class="card-desc">没有标记时，把什么送给出图上游</div></div>
+            <div><div class="card-title">补图方式（二选一）</div><div class="card-desc">决定把什么交给画图模型</div></div>
           </div>
           <div class="card-body">
             <label class="field">
               <span class="lab">正文里没有标记时</span>
               <select id="f-ctx_mode">
-                <option value="direct">正文原样直出（默认 · 真正的文生图）</option>
-                <option value="analyze">分析模型转提示词（直连官方 NAI 必选）</option>
+                <option value="direct">正文直出（默认 · 不用配任何模型，装好就能用）</option>
+                <option value="analyze">分析模型转提示词（直连官方 NAI 必选；位置更准、可出多张）</option>
               </select>
               <span class="hint">
-                <b>正文原样直出（默认）</b> —— 跳过分析模型，把<b>刚生成的这一条角色正文</b>原样送给出图上游，
-                链条是「文 → 图」，也就是真正意义上的文生图。<b>不需要配任何分析模型</b>，
-                也不再多花一次模型调用与十几秒等待 —— 装上就能用。
-              </span>
-              <span class="hint">
-                <b>分析模型转提示词</b> —— 先让一个文字模型读正文，挑出值得画的画面、定好插在哪一段下面、
-                再写成出图提示词，然后送上游。链条是「文 → 文 → 图」。
-                <b>直连官方 NovelAI / NAI 网关必须选这一档</b>：那类上游按 Danbooru 标签训练，
-                喂一整段中文散文等于喂噪料。好处是有分镜、能定点插图、一条回复可出多张。
+                <b>正文直出</b>：把刚生成的这条角色正文原样交给画图模型，中间没有任何文字模型改写。
+                <b>分析模型</b>：先让一个文字模型读正文挑画面写提示词，再送去画 —— 多一次调用（约 10~30 秒）。
               </span>
             </label>
-            <div class="notice">
-              <b>正文直出送的是什么</b><br>
-              只有<b>最新那一条角色回复的正文</b> —— 之前的对话、你发的消息、角色卡设定，一条都不会带过去。
-              酒馆里是人与 AI 的来回对话，整段塞进去既费 token，也会让生图模型分不清到底该画哪一幕。
-            </div>
-            <label class="field">
-              <span class="lab">插图插在哪</span>
+            <details class="explain" id="direct-detail">
+              <summary>「正文直出」的具体行为：送什么、插哪、有什么限制（点开详解）</summary>
+              <div class="explain-body">
+                <b>送的是什么</b>：只有最新这一条角色回复的正文 —— 之前的对话、你发的消息一律不带（整段塞进去费 token，画图模型也不知道该画哪一幕）。正文前会自动拼一段内置作画指令（只画一个瞬间、人物按正文还原、对话不画成画面文字）。<br><br>
+                <b>插在哪</b>：去掉对白后挑「有效叙述最长的那一段」插在它下面；整条只有一段时挂在末尾。不如分析模式准（那边「画什么」和「插哪」一次定下来）。<br><br>
+                <b>多张怎么出</b>：按「设置 → 每轮上限」，把正文按段切成几份，第 1 张画前段、第 2 张画中段…… 每张独立送上游，内容天然不同。<br><br>
+                <b>限制</b>：只在上游读得懂自然语言时成立（V.Adapter / 聊天画图模型可以；官方 NAI 不行，会自动跳过）。<b>部署在服务器上的适配服务会被地址误判成 NAI</b> —— 那种情况去「设置 → 上游类型」选「适配服务」即可，不用切回分析模式。<br><br>
+                <b>提示词页字段在直出下的去向</b>：画风 → 拼成【画风】放在正文前（强烈建议填）；画质 → 【画质】；负面 → 【负面提示词】；「破限词·分析模型」不使用（没有分析模型）；「破限词·生图上游」照常拼最前；画师串自动跳过。<br><br>
+                <b>命中分流通道时</b>：直出送自然语言而分流通道只吃标签，所以那一批会临时调分析模型把正文翻成标签再走分流；张数与组合由分流通道自己的设置决定。
+              </div>
+            </details>
+            <label class="field" style="margin-top:14px">
+              <span class="lab">插图插在哪（直出模式）</span>
               <select id="f-ctx_direct_place">
-                <option value="scene">插在画面感最强的那一段下面（推荐）</option>
+                <option value="scene">插在画面感最强的那段下面（推荐）</option>
                 <option value="end">一律插在回复末尾</option>
               </select>
-              <span class="hint">
-                直出不经分析模型，没有「原文引句」可用来定位，所以要在正文里自己挑一个落点：
-                去掉引号里的对白、去掉括号里的补充之后，<b>剩下最长的那一段</b>就是最可能在写景写人的地方。
-              </span>
-              <span class="hint">
-                它不如分析模式给的落点准（那边是「画什么」和「插哪」由同一个模型一次定下来的），
-                但比一律挂末尾强 —— 长回复里图总在最底下，读起来像附件而不是配图。
-                <b>整条回复只有一段、或整段都是纯对白时，会自动退回末尾</b>。
-              </span>
+              <span class="hint">「画面感最强」= 去掉引号里的对白、括号里的补充后，剩下最长的那一段。</span>
             </label>
-
-            <div class="notice warn">
-              <b>正文直出的三条限制</b><br>
-              ① <b>只在上游读得懂自然语言时才成立</b>：聊天画图模型 / OpenAI 兼容生图可以；
-              直连官方 NAI 不行 —— 送出形态为「标签串」时本模式会自动跳过，不报错也不出图。<br>
-              <b>被判成「标签串」通常不是因为你直连了官方 NAI</b>：判定靠的是出图地址 ——
-              127.0.0.1 / localhost / 带 :8888 / 同页面装了适配服务扩展，才算「吃自然语言」；
-              <b>远程部署的适配服务（域名或远程 IP）会被误判成标签上游</b>。
-              那种情况不用切回分析模式，在「设置」页把「上游类型」选成
-              <span class="mono">适配服务</span> 即可。<br>
-              ② <b>多张 = 开多个窗口</b>：按「每轮上限」可出多张 —— 插件把正文按段切成若干份，
-              第 1 张画前段、第 2 张画中段……每张独立送一次上游，内容天然不同
-              （不是同一段画 N 遍；只有一段正文时自然只出一张）。<br>
-              ③ <b>落点是猜的</b>：不经分析就没有「原文引句」可用来定位，只能按段落位置挑。
-              要位置准确（图就配在它画的那一幕下面），得用分析模式 —— 那边「画什么」与「插哪」是一次定下来的。<br>
-              ④ <b>命中「分流通道」时临时转分析</b>：直出送的是自然语言，而分流通道
-              （真 NAI / 网关）只吃标签，直接把散文当标签喂过去必然画不出来 ——
-              因此正文命中分流条件时，临时调用分析模型把正文翻成标签再走分流。
-              <b>张数与内容组合由分流通道自己的设置决定</b>（分流每次出几张 / 内容组合 / 日常位置），
-              与主通道的「每轮上限」分开。分析模型默认就是酒馆主 API（零配置）；
-              想给这一路换专用模型，在下方「分析模型」卡片选「自定义一个模型」即可。
-            </div>
             <label class="field">
               <span class="lab">作画指令 · 附加（选填）</span>
-              <textarea id="f-ctx_direct_guide" rows="6" placeholder="留空 = 只用内置指令。想固定构图、镜头、色调等自己的偏好就写在这里，会拼在内置指令之后、正文之前"></textarea>
-              <span class="hint">
-                直出时插件会先给生图模型一段<b>内置作画指令</b>（只画正文里最具画面感的那一个瞬间、
-                人物按正文还原、不要把多个时刻糊进一张图、不要把正文里的对话画成画面文字）。
-                它顶替的是分析模型原本顺带做的那几件事 ——
-                <b>少了它，一整段带对话的正文容易画出拼贴怪、人物被改成现代时装</b>，所以内置指令不提供关闭。
-                这里填的是你想<b>额外</b>固定的要求，不是替换。
-              </span>
+              <textarea id="f-ctx_direct_guide" rows="4" placeholder="留空 = 只用内置指令。想固定构图、镜头、色调等自己的偏好就写在这里"></textarea>
+              <span class="hint">内置指令已保证「只画一个瞬间、人物按正文还原」；这里填你想额外固定的要求。</span>
             </label>
-
-            <div class="notice warn">
-              <b>切到直出后，「提示词」页那些字段的去向变了</b><br>
-              以前它们都是<b>注入给分析模型</b>的，现在直出模式下没有分析模型，改由生图模型直接接收：<br>
-              ・<b>画风</b> → 拼成 <span class="mono">【画风】…</span> 放在正文之前（<b>画风一致性的主要来源，强烈建议填</b>）<br>
-              ・<b>正面质量提示词</b> → 拼成 <span class="mono">【画质】…</span>，同上<br>
-              ・<b>负面提示词</b> → 拼成 <span class="mono">【负面提示词】…</span>，同样放在正文之前（对聊天画图模型说「不要出现 X」偶尔会有反向提示的副作用，遇到就把这一栏清空 —— 这一栏本来就默认留空，填不填由你决定）<br>
-              ・<b>破限词·分析模型</b> → <b>直出模式下不使用</b>（没有分析模型可破）；<b>破限词·生图上游</b>照旧拼在最前面，现在它就是直接给生图模型的<br>
-              ・<b>画师串</b> → 直出自动跳过（送的是自然语言，英文画师名混进散文只会污染描述）
-            </div>
-
-            <div class="muted" style="font-size:12px;line-height:1.65">
-              两种模式共用同一个开关（上面「总开关」）与同一套出图设置（出图地址、尺寸、破限词·生图上游等）。
-            </div>
           </div>
         </div>
 
         <div class="card" id="card-analyzer">
           <div class="card-head">
-            <div><div class="card-title">分析模型</div><div class="card-desc">读正文、定位置、写提示词的那个模型</div></div>
+            <div><div class="card-title">分析模型（补图方式选「分析模型」时才用）</div><div class="card-desc">读正文、挑画面、写提示词的那个文字模型</div></div>
             <button class="btn sm" id="btn-ctx-test">查看 / 测试</button>
           </div>
           <div class="card-body">
             <label class="field">
               <span class="lab">用哪个模型来读</span>
               <select id="f-ctx_source">
-                <option value="main">跟随酒馆主 API（推荐 · 零配置）</option>
-                <option value="custom">自定义一个模型</option>
+                <option value="main">跟随酒馆主 API（推荐 · 就是你正在聊天的模型，什么都不用填）</option>
+                <option value="custom">自定义一个模型（想省钱/换轻量模型时用）</option>
               </select>
               <span class="hint">
-                选「跟随酒馆主 API」时，直接使用你在酒馆里正在聊天的那个模型：不必填任何地址与密钥，
-                请求由酒馆转发，也不受浏览器跨域限制。<b>代价</b>是换主模型会连带影响分析质量，
-                且主模型偏贵 / 偏慢时每轮都会多付一次。想解耦就改选「自定义一个模型」。
+                「跟随主 API」零配置，代价是每轮补图多用一次主模型的量。
+                「自定义」需要填下面三项；画风、质量词、负面词、破限词都在「提示词」页配置，这里不重复。
               </span>
             </label>
             <div class="muted" style="font-size:12px;line-height:1.65;margin-bottom:14px">
@@ -602,7 +621,7 @@ input[type=number]{-moz-appearance:textfield}
               <label class="field">
                 <span class="lab">API 地址</span>
                 <input type="text" id="f-ctx_url" placeholder="https://api.openai.com/v1　或　http://127.0.0.1:4000/v1">
-                <span class="hint">任意 OpenAI 兼容服务：官方、中转、本地反代均可。与「设置」页的出图地址互不影响。</span>
+                <span class="hint">任意 OpenAI 兼容服务。和出图渠道互不影响。</span>
               </label>
               <label class="field">
                 <span class="lab">API Key</span>
@@ -614,45 +633,25 @@ input[type=number]{-moz-appearance:textfield}
               <label class="field">
                 <span class="lab">模型名</span>
                 <input type="text" id="f-ctx_model" placeholder="如 gpt-4o-mini、qwen3.8-max、deepseek-chat">
-                <span class="hint">无默认值，须手动填写。该模型仅承担分镜与提示词生成，建议选用轻量模型。</span>
+                <span class="hint">必填。这个模型只负责挑画面写提示词，用轻量模型就够。</span>
               </label>
-            </div>
-            <div class="muted" style="font-size:12px;line-height:1.65;margin-bottom:14px">
-              画风、正面质量提示词、负面提示词与<b>破限词</b>在<b>「提示词」页</b>填写，本页不再重复配置。
-              破限词会随本页分析模型的每次请求一并发送 —— 正文含血腥、成人向内容导致分析拒答时，在那一栏填入附加说明即可。
             </div>
             <label class="field">
               <span class="lab">分析超时（秒）</span>
               <input type="number" id="f-ctx_timeout_sec" min="10" max="600">
+              <span class="hint">跟随主 API 时超时只能「不再等待」，底层请求由酒馆发出停不掉；自定义模型可真正中断。</span>
             </label>
-            <div class="muted" style="font-size:12px;line-height:1.65">
-              配图数量由「设置」页的<b>每轮上限</b>统一控制，与标记驱动路线共用同一设置项。
-              数量为多张时，分析模型按正文的前段、中段与末段分段选取插入位置。
-            </div>
             <div class="err" id="ctx-test-err" style="margin-top:10px"></div>
           </div>
         </div>
 
         <div class="card">
           <div class="card-head">
-            <div><div class="card-title">立即执行一次</div><div class="card-desc">对当前聊天最后一条角色回复执行分析与出图</div></div>
-            <button class="btn primary sm" id="btn-ctx-gen">分析并出图</button>
+            <div><div class="card-title">立即试一次</div><div class="card-desc">不等下一轮对话，马上对最后一条 AI 回复补图</div></div>
+            <button class="btn primary sm" id="btn-ctx-gen">补一张试试</button>
           </div>
           <div class="card-body">
-            <div id="ctx-result"><div class="empty">点击按钮可立即验证该链路，无需等待下一轮生成。</div></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><div><div class="card-title">产物与上游的对应关系</div><div class="card-desc">分析结果如何送给出图上游</div></div></div>
-          <div class="card-body">
-            <div class="muted" style="font-size:12.5px;line-height:1.8">
-              分析模型对每个画面同时产出<b>自然语言描述</b>与 <b>Danbooru 标签</b>，
-              由「设置」页的<b>提示词形态</b>决定送交哪一段：
-              <br>· 经 V.Adapter（OpenAI 格式上游）→ 送描述；
-              <br>· 直连官方 NovelAI / NAI 网关（扩散模型）→ 送标签。
-              <br>两条出图链路共用同一份产物，无需分别配置。插图仅走显示层，正文不保留提示词文本，亦不进入上下文。
-            </div>
+            <div id="ctx-result"><div class="empty">点右上角按钮即可立即验证链路。失败原因也会显示在这里。</div></div>
           </div>
         </div>
       </section>
@@ -661,12 +660,19 @@ input[type=number]{-moz-appearance:textfield}
       <section class="page" id="page-settings">
         <div class="page-head">
           <h1>设置</h1>
-          <p>改动即时生效并保存。面板只负责界面，实际写入由酒馆侧的扩展本体执行。</p>
+          <p><b>这一页是干嘛的：</b>出图渠道、尺寸参数、触发规则都在这。<b>每一项改动失焦即自动保存</b>，不用找保存按钮。
+          前四张卡片是常用的；底下的「分流通道」「V站签名」折叠着，一般不用动。</p>
         </div>
+
+        <div class="search-box">
+          <span class="icon">🔍</span>
+          <input type="text" id="settings-search" placeholder="在这一页里找设置…（输入关键字，如「尺寸」「分流」「swipe」）">
+        </div>
+        <div class="search-empty" id="search-empty">没有匹配的设置项。</div>
 
         <div class="card">
           <div class="card-head">
-            <div><div class="card-title">总开关</div><div class="card-desc">默认开启；关闭后两条配图路线都停</div></div>
+            <div><div class="card-title">总开关</div><div class="card-desc">默认开启；关掉后插件完全不动</div></div>
             <button class="btn sm" id="btn-reload-settings">重新载入</button>
           </div>
           <div class="card-body">
@@ -675,8 +681,7 @@ input[type=number]{-moz-appearance:textfield}
               <div class="sr-text">
                 <div class="sr-lab">启用自动插画</div>
                 <div class="sr-hint">
-                  总开关。<b>默认已开启</b>。关闭后，无论是正文里的 <span class="mono">[ILLUST: …]</span> tag、
-                  还是「上下文出图」的分析结果，都不会出图。
+                  总开关。<b>默认已开启</b>。关掉后：正文里的标记、自动补图，都不再出图（手动出图页不受影响）。
                 </div>
               </div>
             </div>
@@ -685,57 +690,47 @@ input[type=number]{-moz-appearance:textfield}
 
         <div class="card">
           <div class="card-head">
-            <div><div class="card-title">上游</div><div class="card-desc">NovelAI 协议服务的地址与鉴权</div></div>
+            <div><div class="card-title">出图渠道 <span class="chip must">先配这里</span></div>
+            <div class="card-desc">图由谁画：装了 V.Adapter 就留空；直连官方 NAI / 网关才需要填</div></div>
             <button class="btn sm" id="btn-test">测试连接</button>
           </div>
           <div class="card-body">
-            <div class="notice warn">
-              <b>先看清两条链路的区别，能省掉大量困惑</b>
-              <br>· <b>直连官方 NovelAI / NAI 网关</b>：真正的<b>扩散模型现画</b> ——
-              你的提示词（标签、画师串）与尺寸步数等参数，都是直接作用于作画过程的。
-              <br>· <b>经 V.Adapter（OpenAI 格式上游）</b>：图是由<b>上游模型自己画完、把成品返回给你</b>的，
-              <b>不是</b> NAI 那种「按你的提示词逐帧采样现画」。
-              因此<b>画师串、Danbooru 画师标签这类只有扩散模型才认识的东西，在这条链路上不适用</b>
-              （插件会自动跳过，不会拼进去）；<b>画风与画面由上游决定</b>，本插件不参与作画过程。
-            </div>
             <label class="field">
-              <span class="lab">NAI 服务地址</span>
-              <input type="text" id="f-base_url" placeholder="留空 = 自动使用同页面的 V.Adapter">
-              <span class="hint">已安装 V.Adapter 时<strong>留空即可</strong>，两个扩展会自动接上，无需端口；只有对接官方 NAI / 第三方 NAI 网关时才需要填。填写后若连不上，会自动改走同页面的 V.Adapter。</span>
+              <span class="lab">服务地址</span>
+              <input type="text" id="f-base_url" placeholder="留空 = 自动用同页面的 V.Adapter（推荐）">
+              <span class="hint">装了 V.Adapter：<strong>留空即可</strong>，两个扩展自动接上。只有直连官方 NovelAI / 第三方 NAI 网关才需要填。填了但连不上时，会自动回退到同页面的 V.Adapter。</span>
             </label>
             <label class="field">
-              <span class="lab">上游类型</span>
+              <span class="lab"><span class="term" data-term="utype">上游类型</span></span>
               <select id="f-upstream_type">
-                <option value="auto">自动判断（按地址猜）</option>
-                <option value="adapter">适配服务 · 吃自然语言（V.Adapter / 聊天画图模型 / OpenAI 兼容生图）</option>
-                <option value="nai">官方 NovelAI · 吃标签串（含 NAI 网关 / 第三方中转）</option>
+                <option value="auto">自动判断（本机服务算适配，远程一律算 NAI）</option>
+                <option value="adapter">适配服务 —— 吃自然语言（V.Adapter / 聊天画图模型）</option>
+                <option value="nai">官方 NovelAI —— 吃英文标签（含 NAI 网关 / 中转）</option>
               </select>
-              <span class="hint">
-                决定送出去的是<b>自然语言描述</b>还是<b>Danbooru 标签串</b>。
-                地址只能区分「本机」与「远端」，<b>区分不了「远端部署的适配服务」与「第三方 NAI 网关」</b> ——
-                两者都是远程域名，长得一模一样。
-              </span>
-              <span class="hint">
-                <b>适配服务部署在服务器上的，必须手动选「适配服务」这一档</b>：
-                否则会被按地址误判成 NAI，表现为正文直出不出图、只弹一句「送出形态是标签串」。
-                装在酒馆同一台机器上（<span class="mono">127.0.0.1</span> / <span class="mono">localhost</span> /
-                地址带 <span class="mono">:8888</span>）的可以留「自动判断」。
-              </span>
-              <span class="hint">
-                只有在上面「提示词形态」为 <span class="mono">auto</span> 时才起作用；形态被手动指定时以形态为准。
-              </span>
+              <span class="hint">决定发给上游的是「自然语言描述」还是「英文标签」。选错的典型症状：正文直出不出图、提示一句「送出形态是标签串」。
+              <b>适配服务部署在服务器上（远程域名）时必须手动选「适配服务」</b> —— 自动判断分不清远程的适配服务和 NAI 网关。装在本机的留「自动判断」就行。</span>
+            </label>
+            <label class="field">
+              <span class="lab"><span class="term" data-term="pformat">送给上游的内容</span>（提示词形态）</span>
+              <select id="f-prompt_format">
+                <option value="auto">自动（推荐）—— 按上游类型决定送描述还是送标签</option>
+                <option value="description">始终送自然语言描述（V.Adapter / 聊天画图模型）</option>
+                <option value="tags">始终送英文标签（官方 NovelAI / NAI 网关）</option>
+                <option value="both">两段合并送出（不确定上游时的保险选项）</option>
+              </select>
+              <span class="hint">AI 写的标记是两段式的：<span class="mono">[ILLUST: 自然语言描述 | 英文标签]</span>。这里决定取哪一段发出去。留「自动」即可，上面「上游类型」改了它就跟着对。</span>
             </label>
             <label class="field">
               <span class="lab">API Key</span>
               <span class="secret-wrap">
-                <input type="password" id="f-api_key" autocomplete="off" placeholder="适配服务的 nai_key；服务端留空时任意值均可">
+                <input type="password" id="f-api_key" autocomplete="off" placeholder="适配服务的密钥（默认 v-adapter-8888）；服务端不校验时随便填">
                 <button type="button" class="secret-toggle" data-secret="f-api_key" aria-label="显示或隐藏">显示</button>
               </span>
             </label>
             <label class="field">
               <span class="lab">模型名</span>
-              <input type="text" id="f-model" placeholder="官方 NAI / 网关必填，如 nai-diffusion-4-5-full；经 V.Adapter 时会被忽略">
-              <span class="hint">无默认值，必须手动填写。</span>
+              <input type="text" id="f-model" placeholder="官方 NAI / 网关必填，如 nai-diffusion-4-5-full；经 V.Adapter 时填了也会被忽略">
+              <span class="hint">没有默认值。用 V.Adapter 出图就随便留空。</span>
             </label>
             <div class="err" id="test-err"></div>
           </div>
@@ -743,44 +738,148 @@ input[type=number]{-moz-appearance:textfield}
 
         <div class="card">
           <div class="card-head">
-            <div><div class="card-title">分流通道</div><div class="card-desc">主通道画不了的画面，改投另一个出图后端</div></div>
-            <button class="btn sm" id="btn-nsfw-test">测试连接</button>
+            <div><div class="card-title">出图参数</div><div class="card-desc">画多大、画多细、一次画几张</div></div>
+          </div>
+          <div class="card-body">
+            <div class="grid c2">
+              <label class="field"><span class="lab">宽（像素）</span><input type="number" id="f-width" min="64" max="2048" step="8"></label>
+              <label class="field"><span class="lab">高（像素）</span><input type="number" id="f-height" min="64" max="2048" step="8"></label>
+            </div>
+            <div class="grid c2">
+              <label class="field"><span class="lab"><span class="term" data-term="steps">采样步数</span></span><input type="number" id="f-steps" min="1" max="50"></label>
+              <label class="field"><span class="lab"><span class="term" data-term="cfg">CFG</span>（提示词遵循强度）</span><input type="number" id="f-scale" min="0" max="30" step="0.5"></label>
+            </div>
+            <div class="grid c2">
+              <label class="field"><span class="lab">每条回复最多出几张</span><input type="number" id="f-max_per_round" min="1" max="6"></label>
+              <label class="field"><span class="lab">单张超时（秒）</span><input type="number" id="f-timeout_sec" min="30" max="1800"></label>
+            </div>
+            <label class="field">
+              <span class="lab">出图提示词的负面词（对扩散模型有效）</span>
+              <textarea id="f-negative" rows="2" placeholder="留空表示不加"></textarea>
+              <span class="hint">直接发给出图上游的负面词；「提示词」页那个负面词是给分析模型的，两处互不影响。</span>
+            </label>
+            <div class="switch-row" style="margin-top:6px">
+              <div class="sw" id="sw-parallel" data-key="parallel"></div>
+              <div class="sr-text">
+                <div class="sr-lab">多张并行出图</div>
+                <div class="sr-hint">
+                  默认关闭（一张画完再画下一张，不容易触发上游限流）。开启后几张同时请求，先回来的先插入。
+                </div>
+              </div>
+            </div>
+            <label class="field" style="margin-top:12px">
+              <span class="lab">相邻两张的间隔（毫秒，串行时生效）</span>
+              <input type="number" id="f-interval_ms" min="0" max="60000" step="100">
+              <span class="hint">用来躲限流；共享网关建议 0～1000。</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">触发规则</div><div class="card-desc">什么时候画、画完图标记怎么处理</div></div>
           </div>
           <div class="card-body">
             <div class="switch-row">
+              <div class="sw" id="sw-strip_marker" data-key="strip_marker"></div>
+              <div class="sr-text">
+                <div class="sr-lab">出图后把标记从正文里拿掉</div>
+                <div class="sr-hint">推荐开着：插图只显示给用户看，<b>不进 AI 的上下文、不占 token</b>。关掉的话 AI 会一直看到自己写的标记。</div>
+              </div>
+            </div>
+            <div class="switch-row">
+              <div class="sw" id="sw-marker_redistribute" data-key="marker_redistribute"></div>
+              <div class="sr-text">
+                <div class="sr-lab">标记全堆在结尾时，自动摊到各段下面</div>
+                <div class="sr-hint">
+                  模型爱把标记全写在回复最后，图就成了「附件」。开着的话插件会按段落重新分布插图位置 —— <b>正文一个字不改</b>。
+                </div>
+              </div>
+            </div>
+            <div class="switch-row">
+              <div class="sw" id="sw-swipe_regenerate" data-key="swipe_regenerate"></div>
+              <div class="sr-text">
+                <div class="sr-lab"><span class="term" data-term="swipe">swipe</span> 换回复时重新配图</div>
+                <div class="sr-hint">关掉后，切到另一条回复会保留旧插图，可能与剧情对不上。</div>
+              </div>
+            </div>
+            <label class="field" style="margin-top:14px">
+              <span class="lab">忽略的消息类型（高级，一般不动）</span>
+              <input type="text" id="f-exclude_types" placeholder="impersonate">
+              <span class="hint">逗号分隔。默认忽略 <span class="mono">impersonate</span>（AI 假装用户的发言）。</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">把出图规则教给 AI</div><div class="card-desc">一段告诉 AI「什么时候写标记、怎么写」的规则文字</div></div>
+            <button class="btn sm" id="btn-copy-rule">复制规则</button>
+          </div>
+          <div class="card-body">
+            <div class="switch-row">
+              <div class="sw" id="sw-inject_prompt" data-key="inject_prompt"></div>
+              <div class="sr-text">
+                <div class="sr-lab">自动把规则发给模型（推荐）</div>
+                <div class="sr-hint">关掉后需要自己点「复制规则」，手动粘到角色卡或世界书里。</div>
+              </div>
+            </div>
+            <div class="grid c2" style="margin-top:14px">
+              <label class="field" style="margin:0">
+                <span class="lab">注入位置</span>
+                <select id="f-inject_position">
+                  <option value="in_chat">插在对话里、回复之前（推荐）</option>
+                  <option value="in_prompt">并进主系统提示词</option>
+                </select>
+              </label>
+              <label class="field" style="margin:0">
+                <span class="lab">插入深度（注入位置选「对话里」时有效）</span>
+                <input type="number" id="f-inject_depth" min="0" max="20">
+              </label>
+            </div>
+            <details class="explain" style="margin-top:14px">
+              <summary>AI 不写标记？八成是「沙盒卡」的输出模板太强（点开解法）</summary>
+              <div class="explain-body">
+                有些角色卡会在世界书里往对话最底部（depth 0）塞一整套输出模板（状态栏、思维链等），优先级高于写在主系统提示词里的规则 —— 表现为剧情照常、一个标记都不写。
+                解法：保持默认的「插在对话里 + 深度 0」（和模板同一位置，模型才会认真对待）；仍不行就把「复制规则」的内容粘进<b>该角色卡自己的世界书</b>（放进它定义输出格式的那条里）。
+              </div>
+            </details>
+            <label class="field" style="margin-top:12px">
+              <span class="lab">当前规则（只读）</span>
+              <textarea id="f-rule" rows="4" readonly></textarea>
+            </label>
+          </div>
+        </div>
+
+        <details class="adv" id="adv-nsfw">
+          <summary>进阶 · 分流通道（NSFW 第二出图后端）<span class="chip off" id="nsfw-chip">未启用</span>
+            <span class="adv-sub">主通道画不了的画面，自动改投另一个你有账号的 NovelAI 协议服务。默认关闭，完全不影响正常使用。</span>
+          </summary>
+          <div class="card-body">
+            <div class="switch-row" style="padding-top:0">
               <div class="sw" id="sw-nsfw_enabled" data-key="nsfw_enabled"></div>
               <div class="sr-text">
                 <div class="sr-lab">启用分流通道</div>
                 <div class="sr-hint">
-                  关闭时下面这些设置完全不参与，每一次出图都走主通道 —— 与没装这个功能一模一样。
+                  关闭时下面所有设置都不参与，每一张图都走主通道 —— 与没装这个功能一模一样。
                 </div>
               </div>
             </div>
 
             <div id="nsfw-fields">
-              <div class="notice" style="margin-top:14px">
-                <b>它解决什么</b><br>
-                主通道（例如经 V.Adapter 走聊天画图模型）受平台内容策略限制，某些画面提交上去只会失败，
-                白等几十秒还耗掉一次额度。这里填一个<b>自己有账号的 NovelAI 协议服务</b>，
-                这类画面就改投过去；其余画面仍然走主通道，一个字节都不多发。
-              </div>
-              <div class="notice" style="margin-top:14px">
-                <b>与「正文直出」的配合</b><br>
-                正文直出模式送的是自然语言，而分流通道（真 NAI / 网关）只吃标签 ——
-                直接把散文当标签喂过去画不出来。因此正文命中分流条件时，
-                <b>仅这一张</b>会自动临时调用分析模型（默认就是酒馆主 API）把正文翻成
-                <span class="mono">desc + tags</span>，再走分流通道送标签；
-                普通画面仍零分析直出。想让这一路用更擅长写标签的模型，
-                在「上下文出图 → 分析模型」卡片选「自定义一个模型」。
-              </div>
-
+              <details class="explain" style="margin-top:14px">
+                <summary>它是干嘛的、和正文直出怎么配合（点开详解）</summary>
+                <div class="explain-body">
+                  <b>解决什么</b>：主通道（如经 V.Adapter 走聊天画图模型）有平台内容策略，某些画面提交上去只会失败。这里填一个<b>自己有账号的 NovelAI 协议服务</b>，判定命中的画面改投过去；其余画面照走主通道。<br><br>
+                  <b>判定方式</b>：拿画面提示词（描述与标签两段都算）去匹配下面的判定词，命中任意一个就走分流；<b>不改动提示词、不多发任何请求</b>。<br><br>
+                  <b>与正文直出的配合</b>：直出送自然语言而分流通道只吃标签 —— 所以命中时那几张会临时调分析模型把正文翻成标签再送分流；张数与组合由下面「分流每次出几张 / 内容组合」决定，和主通道的「每轮上限」分开。<br><br>
+                  <b>扩散模型靠具体标签作画</b>：只写 nsfw、nude 这类泛化词画不出东西，画面要落到准确的部位与动作标签上。注入给 AI 的规则已要求具体化；若 AI 仍写泛化词，把规则粘进角色卡世界书，或改用分析模式。
+                </div>
+              </details>
               <label class="field" style="margin-top:14px">
                 <span class="lab">服务地址</span>
                 <input type="text" id="f-nsfw_base_url" placeholder="https://api.novelai.net　或　某个 NAI 网关地址">
-                <span class="hint">
-                  必须是 <b>NovelAI 协议</b>的服务（提供 <span class="mono">/ai/generate-image</span>）。
-                  分流画面不会回退到 V.Adapter —— 那正是本次要绕开的上游。
-                </span>
+                <span class="hint">必须是 NovelAI 协议的服务（提供 <span class="mono">/ai/generate-image</span>）。分流画面<b>不会</b>回退到 V.Adapter —— 那正是这次要绕开的上游。</span>
               </label>
               <label class="field">
                 <span class="lab">API Key</span>
@@ -792,69 +891,46 @@ input[type=number]{-moz-appearance:textfield}
               <label class="field">
                 <span class="lab">模型名</span>
                 <input type="text" id="f-nsfw_model" placeholder="如 nai-diffusion-4-5-full">
-                <span class="hint">无默认值，按该服务的要求填写。</span>
+                <span class="hint">必填，按该服务要求填。</span>
               </label>
               <div class="grid c2">
                 <label class="field" style="margin:0">
                   <span class="lab">上游类型</span>
                   <select id="f-nsfw_upstream_type">
-                    <option value="nai">官方 NovelAI · 吃标签串（含 NAI 网关 / 第三方中转）</option>
-                    <option value="adapter">适配服务 · 吃自然语言</option>
+                    <option value="nai">官方 NovelAI —— 吃英文标签（默认）</option>
+                    <option value="adapter">适配服务 —— 吃自然语言</option>
                     <option value="auto">自动判断（按地址猜）</option>
                   </select>
                 </label>
                 <label class="field" style="margin:0">
-                  <span class="lab">提示词形态</span>
+                  <span class="lab">送给上游的内容</span>
                   <select id="f-nsfw_prompt_format">
-                    <option value="tags">tags — 送 Danbooru 标签（NAI 系默认）</option>
-                    <option value="description">description — 送自然语言描述</option>
-                    <option value="both">both — 两段合并送出</option>
-                    <option value="auto">auto — 按地址与上游类型判断</option>
+                    <option value="tags">送英文标签（NAI 系默认）</option>
+                    <option value="description">送自然语言描述</option>
+                    <option value="both">两段合并</option>
+                    <option value="auto">自动判断</option>
                   </select>
                 </label>
               </div>
-              <label class="field">
-                <span class="lab">附加提示词（分流画面专用）</span>
-                <textarea id="f-nsfw_prefix" rows="3" placeholder="留空 = 不加。填在这里的内容会拼到分流画面的提示词最前面"></textarea>
-                <span class="hint">
-                  与主通道的「生图破限词」是两件事：<b>破限词是为受限的上游准备的</b>，
-                  分流上游本身不设内容限制，把它拼过去只会污染画面，因此分流时不再套用。
-                  这里放该上游真正需要的固定内容 —— 质量标签、画风要求之类。
-                </span>
-                <span class="hint">
-                  <b>扩散模型靠具体标签作画</b>：只写 <span class="mono">nsfw</span>、
-                  <span class="mono">nude</span>、<span class="mono">sex</span> 这类泛化词通常画不出想要的东西，
-                  画面要落到准确的部位与动作标签上才站得住 —— 例如
-                  <span class="mono">kissing</span>、<span class="mono">handjob</span>、
-                  <span class="mono">fellatio</span>、<span class="mono">spread legs</span>、
-                  <span class="mono">breasts</span>、<span class="mono">nipples</span> 等，
-                  且须与剧情该时刻实际发生的内容一致。默认注入给剧情模型与分析模型的规则
-                  （「设置 → 提示词注入 → 当前规则」）已包含此要求；若你的剧情模型仍只写泛化词，
-                  把该规则复制进角色卡 / 世界书，或改用「上下文出图」的分析模型路线，插件无法替你补齐。
-                </span>
+              <label class="field" style="margin-top:14px">
+                <span class="lab">分流画面的附加提示词（拼在最前，可空）</span>
+                <textarea id="f-nsfw_prefix" rows="2" placeholder="留空 = 不加。放质量标签、画风要求之类该上游真正需要的固定内容"></textarea>
+                <span class="hint">主通道的「破限词」对分流上游没有意义（它本来就不设限），分流时不套用，用这里代替。</span>
               </label>
               <label class="field">
-                <span class="lab">负面提示词</span>
-                <textarea id="f-nsfw_negative" rows="2" placeholder="留空 = 沿用主通道的负面提示词"></textarea>
+                <span class="lab">分流画面的负面词</span>
+                <textarea id="f-nsfw_negative" rows="2" placeholder="留空 = 沿用主通道的负面词"></textarea>
               </label>
               <label class="field">
                 <span class="lab">分流判定词</span>
-                <textarea id="f-nsfw_words" rows="3" placeholder="留空 = 只用插件内置的分级词。用英文逗号分隔，可填中英文，例如：nsfw, topless, 泳装"></textarea>
-                <span class="hint">
-                  用画面提示词（自然语言描述 <b>与</b> 标签串，两段都算）去匹配这些词，命中任意一个就走分流通道。
-                  判定只在这一步做，<b>不改动提示词本身，也不额外发任何请求</b>。
-                  插件内置一组通用的内容分级词；想要更贴合自己的用法，在这里补词即可。
-                </span>
+                <textarea id="f-nsfw_words" rows="3" placeholder="留空 = 只用内置的分级词。逗号分隔，中英文均可，例如：nsfw, topless, 泳装"></textarea>
+                <span class="hint">命中任意一个词就走分流。判定词越全分流越准；内置词已覆盖常见分级词与高频中文说法。</span>
               </label>
               <div class="grid c2">
                 <label class="field" style="margin:0">
-                  <span class="lab">分流每次出几张（NAI）</span>
+                  <span class="lab">分流每次出几张</span>
                   <input type="number" id="f-nsfw_max" min="1" max="6" step="1" value="2">
-                  <span class="hint">
-                    与主通道的「每轮上限」<b>分开设置</b>，两条通道各管各的。<br>
-                    设 2 时配合下方「内容组合」出 1 张日常 + 1 张 NSFW；
-                    设 1 时即使选「日常+NSFW」也只出 1 张 NSFW。
-                  </span>
+                  <span class="hint">和主通道的「每轮上限」分开，各管各的。</span>
                 </label>
                 <label class="field" style="margin:0">
                   <span class="lab">内容组合</span>
@@ -862,222 +938,61 @@ input[type=number]{-moz-appearance:textfield}
                     <option value="daily_nsfw">日常 + NSFW 各一张（默认）</option>
                     <option value="nsfw_only">全部都是 NSFW</option>
                   </select>
-                  <span class="hint">
-                    命中分流时这批图画什么。<b>日常 + NSFW</b>：出一张日常、一张成人；
-                    <b>全部都是 NSFW</b>：每张都画成人内容。分析模型会通读正文、
-                    语义判断真正的成人时刻（位置不限），不是按关键词硬挑段。
-                  </span>
+                  <span class="hint">「日常+NSFW」时出一张普通画面、一张成人画面；设 1 张时即使选组合也只出成人那张。</span>
                 </label>
               </div>
-              <label class="field">
-                <span class="lab">日常那一张的画面位置</span>
+              <label class="field" style="margin-top:14px">
+                <span class="lab">「日常那一张」的位置</span>
                 <select id="f-nsfw_daily_place">
-                  <option value="auto">自动 — 分析模型自己挑（默认）</option>
+                  <option value="auto">自动 — 分析模型自己挑非成人时刻（默认）</option>
                   <option value="front">正文前段</option>
                   <option value="middle">正文中段</option>
                   <option value="end">正文后段</option>
                 </select>
-                <span class="hint">
-                  仅「日常 + NSFW」组合、且分流出两张时生效：
-                  日常那一张从正文对应区段挑一个<b>非成人</b>时刻；
-                  NSFW 那一张永远由分析模型语义判断真正成人的时刻。
-                </span>
+                <span class="hint">仅「日常+NSFW」组合且出 2 张以上时生效；成人那张永远由分析模型按正文语义判断。</span>
               </label>
               <label class="field">
-                <span class="lab">主通道失败后的重试策略</span>
+                <span class="lab">主通道失败后要不要转分流重试</span>
                 <select id="f-nsfw_retry">
-                  <option value="off">不自动转 — 主通道失败就失败，绝不碰 NAI 额度</option>
-                  <option value="smart">智能 — 仅疑似 NSFW 才转分流重试（默认）</option>
-                  <option value="force">强制 — 主通道失败一律转分流重试</option>
+                  <option value="smart">智能（默认）— 疑似 NSFW 或被内容策略拒绝时才转</option>
+                  <option value="off">不转 — 失败就失败，绝不消耗分流额度</option>
+                  <option value="force">总是转 — 图必定出得来，但普通图失败也会烧 NAI 额度</option>
                 </select>
-                <span class="hint">
-                  主通道（qwen）出图失败时是否自动改用分流通道（真 NAI）重画。<br>
-                  <b>不自动转</b>：失败就失败，连「疑似」判定都不做 —— 最省额度，但 NSFW 漏判时图出不来。<br>
-                  <b>智能</b>：正文/标记命中判定词，或错误是内容策略拒绝（qwen 因 NSFW 拒答）才转 ——
-                  日常图 qwen 网络失败不会白烧 NAI 额度。<br>
-                  <b>强制</b>：不管什么原因失败都转分流重试，图必定出得来，但日常图失败也会消耗 NAI 额度。
-                </span>
+                <span class="hint">「智能」：只有正文/标记命中判定词、或错误信息是内容策略拒绝时才转 —— 日常图网络抖动不会白烧 NAI 额度。</span>
               </label>
-            </div>
-            <div class="err" id="nsfw-test-err"></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <div><div class="card-title">提示词形态</div><div class="card-desc">决定标记中的哪一部分送给上游</div></div>
-          </div>
-          <div class="card-body">
-            <label class="field">
-              <span class="lab">送给上游的内容</span>
-              <select id="f-prompt_format">
-                <option value="auto">auto — 按服务地址自动判断（默认）</option>
-                <option value="description">description — 始终送自然语言描述</option>
-                <option value="tags">tags — 始终送 Danbooru 标签</option>
-                <option value="both">both — 描述与标签合并送出</option>
-              </select>
-              <span class="hint">
-                标记格式为 <span class="mono">[ILLUST: 自然语言描述 | Danbooru,Tags]</span>，
-                两半分别对应两类上游。扩散模型（官方 NovelAI / NAI 网关）以标签为有效输入形态；
-                OpenAI 格式上游（含聊天模型）需要连贯的自然语言。<br>
-                <span class="mono">auto</span> 的判定规则：地址为
-                <span class="mono">127.0.0.1</span> / <span class="mono">localhost</span> /
-                <span class="mono">:8888</span>（即经 V.Adapter 转发）时送描述，其余送标签。
-              </span>
-            </label>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><div><div class="card-title">出图参数</div><div class="card-desc">直接发给上游</div></div></div>
-          <div class="card-body">
-            <div class="switch-row">
-              <div class="sw" id="sw-parallel" data-key="parallel"></div>
-              <div class="sr-text">
-                <div class="sr-lab">并行出图</div>
-                <div class="sr-hint">
-                  默认关闭（串行：一张完成再请求下一张）。开启后按「每轮上限」同时发起请求，
-                  先返回的先插入正文，互不等待。适用于允许并发的上游；
-                  存在限流或风控的中转服务应保持关闭。
-                </div>
+              <div class="row" style="margin-top:6px">
+                <button class="btn sm" id="btn-nsfw-test">测试分流连接</button>
               </div>
+              <div class="err" id="nsfw-test-err" style="margin-top:8px"></div>
             </div>
-            <div class="grid c3" style="margin-top:14px">
-              <label class="field"><span class="lab">宽</span><input type="number" id="f-width" min="64" max="2048" step="8"></label>
-              <label class="field"><span class="lab">高</span><input type="number" id="f-height" min="64" max="2048" step="8"></label>
-              <label class="field"><span class="lab">采样步数</span><input type="number" id="f-steps" min="1" max="50"></label>
-            </div>
-            <div class="grid c3">
-              <label class="field"><span class="lab">CFG（scale）</span><input type="number" id="f-scale" min="0" max="30" step="0.5"></label>
-              <label class="field"><span class="lab">每轮上限（张）</span><input type="number" id="f-max_per_round" min="1" max="6"></label>
-              <label class="field"><span class="lab">单张超时（秒）</span><input type="number" id="f-timeout_sec" min="30" max="1800"></label>
-            </div>
-            <label class="field">
-              <span class="lab">两张之间的间隔（毫秒）</span>
-              <input type="number" id="f-interval_ms" min="0" max="60000" step="100">
-              <span class="hint">用于规避连点与限流；共享网关建议 0～1000。</span>
-            </label>
-            <label class="field">
-              <span class="lab">负面提示词</span>
-              <textarea id="f-negative" rows="3" placeholder="留空表示不加负面词"></textarea>
-            </label>
           </div>
-        </div>
+        </details>
 
-        <div class="card">
-          <div class="card-head"><div><div class="card-title">触发规则</div><div class="card-desc">触发条件与去重规则</div></div></div>
+        <details class="adv" id="adv-vsig">
+          <summary>进阶 · V站 专属密钥签名<span class="chip off" id="vsig-chip">不生效</span>
+            <span class="adv-sub">密钥是 vcs_ 开头（V站 专属密钥）时才需要；用官方 NAI / 其他中转时整块无关。一般保持默认。</span>
+          </summary>
           <div class="card-body">
-            <div class="switch-row">
-              <div class="sw" id="sw-swipe_regenerate" data-key="swipe_regenerate"></div>
-              <div class="sr-text">
-                <div class="sr-lab">swipe 换回复时重新配图</div>
-                <div class="sr-hint">关闭后，切换到其他回复时可能残留与剧情不符的插图。</div>
-              </div>
-            </div>
-            <div class="switch-row">
-              <div class="sw" id="sw-strip_marker" data-key="strip_marker"></div>
-              <div class="sr-text">
-                <div class="sr-lab">正文里剔除 tag</div>
-                <div class="sr-hint">插图只走显示层，不进入 AI 上下文、不占用 Token。关闭后 AI 会看到自己输出的 tag。</div>
-              </div>
-            </div>
-            <div class="switch-row">
-              <div class="sw" id="sw-marker_redistribute" data-key="marker_redistribute"></div>
-              <div class="sr-text">
-                <div class="sr-lab">标记扎堆在末尾时自动摊开</div>
-                <div class="sr-hint">
-                  模型常把 <span class="mono">[ILLUST: …]</span> 全部写在回复最后一段，插图于是变成「附件」而不是「配图」。
-                  开启后，插件认出这种形态会按段落把标记重新摊开 —— <b>正文一个字不改</b>，只改插图插在哪一段下面。
-                  标记本来就分散在正文中的，不会有任何动作。
-                </div>
-              </div>
-            </div>
-            <label class="field" style="margin-top:14px">
-              <span class="lab">忽略的消息类型</span>
-              <input type="text" id="f-exclude_types" placeholder="impersonate">
-              <span class="hint">逗号分隔。默认忽略 <span class="mono">impersonate</span>。</span>
-            </label>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <div><div class="card-title">提示词注入</div><div class="card-desc">引导 AI 输出 tag 的规则</div></div>
-            <button class="btn sm" id="btn-copy-rule">复制规则</button>
-          </div>
-          <div class="card-body">
-            <div class="switch-row">
-              <div class="sw" id="sw-inject_prompt" data-key="inject_prompt"></div>
-              <div class="sr-text">
-                <div class="sr-lab">自动把 ILLUST 规则交给模型</div>
-                <div class="sr-hint">关闭后需手动将下方规则粘贴到角色卡或世界书中。</div>
-              </div>
-            </div>
-            <div class="grid c2" style="margin-top:14px">
-              <label class="field" style="margin:0">
-                <span class="lab">规则注入位置</span>
-                <select id="f-inject_position">
-                  <option value="in_chat">in_chat — 插在回复之前（推荐）</option>
-                  <option value="in_prompt">in_prompt — 并入主系统提示词</option>
-                </select>
-              </label>
-              <label class="field" style="margin:0">
-                <span class="lab">插入深度（in_chat 时有效）</span>
-                <input type="number" id="f-inject_depth" min="0" max="20">
-              </label>
-            </div>
-            <div class="muted" style="margin-bottom:14px;font-size:12px;line-height:1.65">
-              输出模板由角色卡世界书强制约束时（常见于深度定制的角色卡），世界书通常在
-              <span class="mono">depth 0</span> 注入整套格式规范，其优先级高于主系统提示词中的规则。
-              此时应将注入位置设为 <span class="mono">in_chat</span> 且深度为 <span class="mono">0</span>，
-              使规则与该模板处于同一位置。若仍未生效，请使用「复制规则」将规则写入该角色卡的世界书，
-              使标记成为其输出模板的一部分。
-            </div>
-            <label class="field" style="margin-top:0">
-              <span class="lab">当前规则（只读）</span>
-              <textarea id="f-rule" rows="4" readonly></textarea>
-            </label>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <div><div class="card-title">V站 专属密钥签名</div><div class="card-desc">只在密钥是 vcs_ 开头时才生效</div></div>
-          </div>
-          <div class="card-body">
-            <div class="muted" style="font-size:12.5px;line-height:1.8;margin-bottom:14px">
-              V站 发两种密钥：<b>通用密钥</b>（无前缀）任何 NAI 客户端都能用；<b>专属密钥</b>
-              （<span class="mono">vcs_</span> 开头）必须随请求附一个签名，否则 V站 直接 403、不降级。
-              插件检测到专属密钥时会自动算签名，且<b>盐由站点下发、轮换后自动跟随</b> ——
-              所以下面两项一般情况下都不需要动。
-              用 NovelAI 官方或任意第三方中转时，本卡片的内容完全不生效。
-            </div>
             <label class="field">
               <span class="lab">签名总闸</span>
               <select id="f-sign_mode">
-                <option value="auto">auto（推荐）：仅 vcs_ 专属密钥附加签名</option>
-                <option value="off">off：任何密钥都不加签名（排障用）</option>
-                <option value="on">on：任何密钥都加签名（自建站点用）</option>
+                <option value="auto">自动（推荐）—— 仅 vcs_ 专属密钥附加签名</option>
+                <option value="off">关闭 —— 任何密钥都不加（排障用）</option>
+                <option value="on">总是加 —— 自建 V站 想锁通用额度时用</option>
               </select>
-              <span class="hint">
-                选 <span class="mono">off</span> 时，连你自己的专属密钥也会被 V站 拒绝 —— 只在排障或回滚时用。
-              </span>
+              <span class="hint">选「关闭」时连自己的专属密钥也会被 V站 拒绝，只在排障时用。</span>
             </label>
             <label class="field">
               <span class="lab">专属签名盐（一般留空）</span>
-              <input type="text" id="f-exclusive_salt" placeholder="留空即可：插件会自动向站点查询当前盐">
-              <span class="hint">
-                留空 = 出图前自动问站点要当前盐，站点轮换盐之后无需更新插件。
-                只有在<b>自建了 V站 且改过 exclusiveSalt</b>、或站点版本过老取不到盐时，才在这里填与该站点一致的值。
-                填错会导致专属密钥签名不通过（通用密钥不受影响）。
-              </span>
+              <input type="text" id="f-exclusive_salt" placeholder="留空 = 插件自动向站点查询当前盐">
+              <span class="hint">留空即可，站点换盐后自动跟随。只有自建 V站 且改过 exclusiveSalt 时才需要填和站点一致的值。</span>
             </label>
           </div>
-        </div>
+        </details>
 
         <div class="card">
           <div class="card-head">
-            <div><div class="card-title">进阶</div><div class="card-desc">诊断</div></div>
+            <div><div class="card-title">诊断</div><div class="card-desc">出不了图时用</div></div>
             <button class="btn sm danger" id="btn-reset">恢复默认值</button>
           </div>
           <div class="card-body">
@@ -1085,7 +1000,7 @@ input[type=number]{-moz-appearance:textfield}
               <div class="sw" id="sw-debug" data-key="debug"></div>
               <div class="sr-text">
                 <div class="sr-lab">控制台详细日志</div>
-                <div class="sr-hint">开启后，浏览器控制台输出 <span class="mono">[V.Canvas]</span> 前缀的过程日志。</div>
+                <div class="sr-hint">开启后浏览器控制台（F12）会输出 <span class="mono">[V.Canvas]</span> 前缀的过程日志，排查「什么都没发生」先开这个。</div>
               </div>
             </div>
           </div>
@@ -1115,8 +1030,31 @@ function resolveApi() {
 let API = resolveApi();
 const READY = typeof API === 'function';
 
+// 同页面的 V.Adapter 是否在场（它会在酒馆页面上挂出页面内直连桥）。
+// 只用于概览页判断「出图渠道是否已接好」—— 两个扩展装在同一页面时即为已接好。
+function hasAdapterBridge() {
+  try { if (window.parent && window.parent !== window && typeof window.parent.__V_ADAPTER_NAI__ === 'function') return true; } catch (e) { /* 跨域忽略 */ }
+  try { if (window.opener && typeof window.opener.__V_ADAPTER_NAI__ === 'function') return true; } catch (e) { /* 跨域忽略 */ }
+  try { if (typeof window.__V_ADAPTER_NAI__ === 'function') return true; } catch (e) { /* 忽略 */ }
+  return false;
+}
+
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ── 名词白话解释：点带虚线的词弹出 ── */
+const TERMS = {
+  marker: { t: '标记 [ILLUST: …]', d: '插件教给 AI 的「点菜暗号」：AI 在正文里写 [ILLUST: 画面描述 | 英文标签]，插件看到就画一张图插在那行下面。' },
+  pformat: { t: '送给上游的内容（提示词形态）', d: 'AI 写的标记有两段：自然语言描述 + 英文标签。扩散模型（官方 NovelAI）只认英文标签；V.Adapter / 聊天画图模型读自然语言更有效。这里决定发哪一段。' },
+  utype: { t: '上游类型', d: '告诉插件你的出图服务吃哪种输入：适配服务（V.Adapter 等）吃自然语言；官方 NovelAI / NAI 网关吃英文标签。选错的典型症状：正文直出不出图。' },
+  artist: { t: '画师串', d: '一串英文画师名标签，拼在提示词最前面锁定画风。只有按标签训练的扩散模型（官方 NovelAI / NAI 网关）认识它；经 V.Adapter 出图会自动跳过。' },
+  swipe: { t: 'swipe', d: '酒馆里的左右箭头：在同一条回复的多个版本之间切换。' },
+  expand: { t: '扩写', d: '把一句话交给文字模型补充成完整的画面描述（外貌、服装、场景、画风），再拿去出图。由 V.Adapter 完成；直连官方 NAI 时没有这一步。' },
+  steps: { t: '采样步数', d: '扩散模型的作画迭代次数：越多越精细越慢。默认 28 就很好；用 V.Adapter / 聊天画图模型时此项会被忽略。' },
+  cfg: { t: 'CFG（引导系数）', d: '画面有多「听话」：越高越严格但容易僵硬。默认 6 即可；用 V.Adapter / 聊天画图模型时此项会被忽略。' },
+  negative: { t: '负面提示词', d: '告诉扩散模型「画面里不要出现什么」。只对扩散模型有效。' },
+  divert: { t: '分流通道', d: '第二个出图后端。主通道画不了的画面（按判定词命中）自动改投这里，其余画面完全不受影响。' },
+};
 
 /* ── 图片地址解析 ──
    酒馆返回的图片地址是根路径（/user/images/…），而本页位于
@@ -1154,13 +1092,11 @@ function markImgErrors(root) {
 
 // 图片标签统一生成：远程图片必须显式禁用 Referer —— 上游 CDN（cdn.qwenlm.ai）有防盗链，
 // 带酒馆地址的 Referer 一律 403，只放行「不带 Referer」或它自家站的 Referer。
-// 正文里的插图能正常显示正因如此（酒馆侧渲染不带 Referer）；面板此前没加，故必然裂图。
 function imgTag(url, cls) {
   return '<img src="' + esc(url) + '"' + (cls ? ' class="' + cls + '"' : '') +
     ' referrerpolicy="no-referrer" alt="illustration">';
 }
 
-// 缩略图里的图片：远程与本地都走同一套属性
 function thumbImg(url) {
   return imgTag(imgUrl(url));
 }
@@ -1196,20 +1132,47 @@ async function call(action, payload) {
 }
 
 /* ── 页面切换 ── */
+function gotoPage(name) {
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === name));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + name));
+  toggleSidebar(false);
+  if (name === 'history') refreshHistory();
+}
 document.querySelectorAll('.nav-btn').forEach(btn => {
-  btn.onclick = () => {
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b === btn));
-    const name = btn.dataset.page;
-    document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + name));
-    toggleSidebar(false);
-    if (name === 'history') refreshHistory();
-  };
+  btn.onclick = () => gotoPage(btn.dataset.page);
 });
 function toggleSidebar(open) {
   document.querySelector('.sidebar').classList.toggle('open', open);
   $('mask-mobile').classList.toggle('show', open);
 }
 $('btn-menu').onclick = () => toggleSidebar(true);
+
+/* ── 名词解释弹层 ── */
+let termPop = null;
+function closeTermPop() { if (termPop) { termPop.remove(); termPop = null; } }
+document.addEventListener('click', e => {
+  const t = e.target.closest('.term');
+  closeTermPop();
+  if (!t) return;
+  const info = TERMS[t.dataset.term];
+  if (!info) return;
+  const pop = document.createElement('div');
+  pop.className = 'term-pop';
+  pop.innerHTML = '<b>' + esc(info.t) + '</b>' + esc(info.d) + '<div class="close">点击空白处关闭</div>';
+  document.body.appendChild(pop);
+  const r = t.getBoundingClientRect();
+  const pw = Math.min(340, window.innerWidth - 24);
+  const x = Math.min(Math.max(8, r.left), window.innerWidth - pw - 8);
+  let y = r.bottom + 8;
+  if (y + pop.offsetHeight > window.innerHeight - 8) y = Math.max(8, r.top - pop.offsetHeight - 8);
+  pop.style.left = x + 'px';
+  pop.style.top = y + 'px';
+  termPop = pop;
+  e.stopPropagation();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTermPop(); });
+// 页面滚动时收起弹层，避免弹层与词条脱节
+window.addEventListener('scroll', closeTermPop, { passive: true });
 
 /* ── 设置界面 ── */
 const TEXT_KEYS = ['base_url', 'api_key', 'upstream_type', 'model', 'negative', 'prompt_format', 'exclude_types', 'inject_position', 'ctx_mode', 'ctx_direct_guide', 'ctx_direct_place', 'ctx_source', 'ctx_url', 'ctx_key', 'ctx_model', 'ctx_style', 'ctx_quality', 'ctx_negative', 'jb_llm', 'jb_image', 'active_artist', 'sign_mode', 'exclusive_salt', 'nsfw_base_url', 'nsfw_api_key', 'nsfw_model', 'nsfw_upstream_type', 'nsfw_prompt_format', 'nsfw_negative', 'nsfw_words', 'nsfw_prefix', 'nsfw_mix', 'nsfw_daily_place', 'nsfw_retry'];
@@ -1228,16 +1191,24 @@ function fillForm(s) {
   syncCtxSourceUI();
   syncCtxModeUI();
   syncNsfwUI();
+  syncVsigUI();
 }
 
 // 分流通道关闭时把整块字段收起来：留着会让人以为不填就跑不起来。
 function syncNsfwUI() {
   const sw = $('sw-nsfw_enabled');
+  const on = sw && sw.classList.contains('on');
   const box = $('nsfw-fields');
-  if (box) box.style.display = (sw && sw.classList.contains('on')) ? '' : 'none';
+  if (box) box.style.display = on ? '' : 'none';
+  const adv = $('adv-nsfw');
+  if (adv) {
+    adv.open = !!on;                       // 启用时自动展开；平时保持折叠
+    const chip = $('nsfw-chip');
+    if (chip) { chip.textContent = on ? '已启用' : '未启用'; chip.className = 'chip ' + (on ? 'ok' : 'off'); }
+  }
 }
 
-// 选「正文原样直出」时整张分析模型卡片都不参与，直接收起来 ——
+// 选「正文直出」时整张分析模型卡片都不参与，直接收起来 ——
 // 留着会让人以为还得配一个分析模型才能用。
 function syncCtxModeUI() {
   const sel = $('f-ctx_mode');
@@ -1251,6 +1222,19 @@ function syncCtxSourceUI() {
   const sel = $('f-ctx_source');
   const box = $('ctx-custom-fields');
   if (box) box.style.display = (sel && sel.value === 'custom') ? '' : 'none';
+}
+
+// V站签名块：密钥是 vcs_ 开头时展开提示，否则保持折叠并显示「不生效」。
+function syncVsigUI() {
+  const key = (SETTINGS && SETTINGS.api_key) || '';
+  const relevant = /^vcs_/i.test(String(key).trim());
+  const adv = $('adv-vsig');
+  if (!adv) return;
+  const chip = $('vsig-chip');
+  const mode = (SETTINGS && SETTINGS.sign_mode) || 'auto';
+  if (!relevant) { if (chip) { chip.textContent = '不生效（密钥不是 vcs_ 专属密钥）'; chip.className = 'chip off'; } adv.open = false; return; }
+  if (chip) { chip.textContent = mode === 'off' ? '已关闭（专属密钥会被 403）' : '对当前密钥生效'; chip.className = 'chip ' + (mode === 'off' ? 'off' : 'ok'); }
+  if (mode !== 'off') adv.open = true;
 }
 
 /* ── 画师串 ──
@@ -1402,14 +1386,28 @@ document.querySelectorAll('.secret-toggle').forEach(btn => {
   };
 });
 
+/* ── 设置页搜索：过滤当前页的卡片 ── */
+$('settings-search').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase();
+  const cards = document.querySelectorAll('#page-settings .card, #page-settings details.adv, #page-settings details.explain');
+  let visible = 0;
+  cards.forEach(c => {
+    const hit = !q || c.textContent.toLowerCase().includes(q);
+    c.style.display = hit ? '' : 'none';
+    if (hit) visible++;
+    if (q && hit && c.tagName === 'DETAILS') c.open = true;   // 搜到折叠块时自动展开
+  });
+  $('search-empty').style.display = (q && visible === 0) ? 'block' : 'none';
+});
+
 /* ── 概览 ── */
 function kvSet(id, text) { const el = $(id); if (el) el.textContent = text; }
 
 const PROMPT_FORMAT_LABEL = {
-  auto: 'auto（按地址自动判断）',
-  description: 'description（自然语言描述）',
-  tags: 'tags（Danbooru 标签）',
-  both: 'both（描述 + 标签）',
+  auto: '自动（按上游类型判断）',
+  description: '自然语言描述',
+  tags: '英文标签',
+  both: '描述 + 标签合并',
 };
 
 async function refreshOverview() {
@@ -1427,28 +1425,63 @@ async function refreshOverview() {
   const box = $('stat-enabled-box');
   box.className = 'stat ' + (d.enabled ? 'ok' : 'bad');
   kvSet('stat-enabled', d.enabled ? '已开启' : '已关闭');
-  kvSet('stat-upstream', d.upstreamKind || '-');
+  // 地址留空时扩展走「同页面 V.Adapter 直连」，但扩展侧的 upstreamKind 无法感知桥，
+  // 面板补一步判断，避免「明明能用却显示未配置」的困惑。
+  const bridgeOk = hasAdapterBridge();
+  const upstreamText = s.base_url
+    ? (d.upstreamKind || '-')
+    : (bridgeOk ? 'V.Adapter（页面内直连 · 地址留空）' : '未配置 — 去设置页填地址');
+  kvSet('stat-upstream', upstreamText);
   kvSet('stat-images', String((d.images || []).length));
 
-  kvSet('ov-base', s.base_url || '（未配置）');
+  kvSet('ov-base', s.base_url || '（留空 → 自动用同页面的 V.Adapter）');
   kvSet('ov-key', d.apiKeyMasked || '（未设置）');
-  kvSet('ov-model', s.model || '（空）');
+  kvSet('ov-model', s.model || '（空，经 V.Adapter 时可空）');
   kvSet('ov-params', `${s.width} × ${s.height} · ${s.steps} 步 · CFG ${s.scale}`);
   kvSet('ov-prompt-format', PROMPT_FORMAT_LABEL[s.prompt_format] || s.prompt_format || '-');
   kvSet('ov-max', (s.max_per_round || 0) + ' 张');
   kvSet('ov-inject', s.inject_prompt
-    ? '开 · ' + (s.inject_position === 'in_prompt' ? 'in_prompt' : `in_chat(depth ${s.inject_depth})`)
-    : '关');
-  kvSet('ov-ctx', s.ctx_enabled ? '开 · ' + (d.ctxActiveLabel || '-') : '关');
+    ? '开 · ' + (s.inject_position === 'in_prompt' ? '主系统提示词' : `对话内（深度 ${s.inject_depth}）`)
+    : '关（需手动把规则粘进角色卡）');
+  kvSet('ov-ctx', s.ctx_enabled ? '开 · ' + (s.ctx_mode === 'direct' ? '正文直出' : (d.ctxActiveLabel || '分析模型')) : '关');
   kvSet('ctx-active', d.ctxActiveLabel || '-');
-  kvSet('ov-strip', s.strip_marker ? '开' : '关');
-  kvSet('ov-swipe', s.swipe_regenerate ? '开' : '关');
+  kvSet('ov-strip', s.strip_marker ? '不进入（推荐）' : '进入（AI 会看到标记）');
+  kvSet('ov-swipe', s.swipe_regenerate ? '重新配图' : '保留旧图');
   kvSet('ov-exclude', s.exclude_types || '（无）');
 
+  // 三种出图方式的当前状态
+  kvSet('route-2-state', !d.enabled ? '总开关已关' : (s.ctx_mode === 'direct' ? '已启用' : '未启用（补图方式选了分析模型）'));
+  kvSet('route-3-state', !d.enabled ? '总开关已关' : (s.ctx_mode === 'analyze' ? '已启用' : '未启用（补图方式选了正文直出）'));
+
+  // 三步开始的状态
+  const step1 = !!s.base_url || bridgeOk;
+  const step1El = $('qs-step-1');
+  if (step1El) {
+    step1El.classList.toggle('done', step1);
+    step1El.classList.toggle('todo', !step1);
+    step1El.querySelector('.qs-dot').textContent = step1 ? '✓' : '1';
+    kvSet('qs-1-hint', step1
+      ? '已接好：' + upstreamText
+      : '还没接：装了 V.Adapter 就会自动接上；否则去「设置」页填一个 NovelAI 协议服务地址。');
+  }
+  const step2El = $('qs-step-2');
+  if (step2El) {
+    step2El.classList.toggle('done', !!d.enabled);
+    step2El.classList.toggle('todo', !d.enabled);
+    step2El.querySelector('.qs-dot').textContent = d.enabled ? '✓' : '2';
+  }
   const imgs = d.images || [];
+  const step3El = $('qs-step-3');
+  if (step3El) {
+    const step3 = imgs.length > 0;
+    step3El.classList.toggle('done', step3);
+    step3El.classList.toggle('todo', !step3);
+    step3El.querySelector('.qs-dot').textContent = step3 ? '✓' : '3';
+  }
+
   const wrap = $('thumbs-wrap');
   if (!imgs.length) {
-    wrap.innerHTML = '<div class="empty">本会话尚未生成插图。<br>当 AI 输出带 tag 的回复后，此处会显示生成结果。</div>';
+    wrap.innerHTML = '<div class="empty">本聊天还没出过图。<br>AI 输出带标记的回复、或你点一次「补一张试试」后，这里就会出现结果。</div>';
   } else {
     wrap.innerHTML = '<div class="thumbs">' + imgs.map(it =>
       '<div class="thumb">' +
@@ -1463,6 +1496,8 @@ async function refreshOverview() {
 }
 
 $('btn-refresh-overview').onclick = async () => { await refreshOverview(); toast('已刷新'); };
+$('qs-goto-settings').onclick = () => { gotoPage('settings'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+$('qs-goto-translate').onclick = () => { gotoPage('translate'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
 /* ── 生成记录 ── */
 function fmtTime(t) {
@@ -1482,7 +1517,7 @@ async function refreshHistory() {
     return;
   }
   const list = (r.data && r.data.history) || [];
-  kvSet('history-count', list.length ? '共 ' + list.length + ' 条' : '暂无记录');
+  kvSet('history-count', list.length ? '共 ' + list.length + ' 条（图存在酒馆目录里，清掉这里的记录不影响图片文件）' : '还没画过');
   if (!list.length) {
     wrap.innerHTML = '<div class="empty">还没有生成过插画。<br>出图成功后会自动记录在此。</div>';
     return;
@@ -1508,7 +1543,7 @@ $('btn-history-clear').onclick = async () => {
   toast('已清空');
 };
 
-/* ── 转译出图 ── */
+/* ── 手动出图 ── */
 let TR_BUSY = false;
 
 function renderTranslateResult(d) {
@@ -1516,7 +1551,7 @@ function renderTranslateResult(d) {
   $('tr-result').innerHTML =
     '<div class="tr-preview">' + imgTag(url) + '</div>' +
     '<label class="field" style="margin-top:14px">' +
-      '<span class="lab">实际送入上游的提示词</span>' +
+      '<span class="lab">实际送入上游的提示词（扩写后）</span>' +
       '<textarea id="tr-prompt" rows="6" readonly></textarea>' +
     '</label>' +
     '<div class="row" style="margin-top:10px">' +
@@ -1534,7 +1569,7 @@ $('btn-tr-gen').onclick = async () => {
   TR_BUSY = true;
   btn.disabled = true;
   const old = btn.textContent;
-  btn.textContent = '生成中…（扩写 + 出图，约 30~90 秒）';
+  btn.textContent = '画图中…（扩写 + 出图，约 30~90 秒）';
   $('tr-err').textContent = '';
   const r = await call('translate.generate', { text, sizeMode: $('tr-size-mode').value });
   TR_BUSY = false;
@@ -1542,7 +1577,7 @@ $('btn-tr-gen').onclick = async () => {
   btn.textContent = old;
   if (!r.ok) {
     $('tr-err').textContent = r.error || '未知错误';
-    toast('转译出图失败', 'bad');
+    toast('手动出图失败', 'bad');
     return;
   }
   renderTranslateResult(r.data || {});
@@ -1560,7 +1595,7 @@ $('btn-tr-copy').onclick = async () => {
   }
 };
 
-/* ── 上下文出图 ── */
+/* ── 自动补图 ── */
 $('btn-ctx-test').onclick = async () => {
   const btn = $('btn-ctx-test');
   btn.disabled = true;
@@ -1583,21 +1618,21 @@ $('btn-ctx-gen').onclick = async () => {
   CTX_BUSY = true;
   btn.disabled = true;
   const old = btn.textContent;
-  btn.textContent = '处理中…（分析 + 出图，约 30~120 秒）';
-  $('ctx-result').innerHTML = '<div class="empty">正在分析最后一条角色回复…</div>';
+  btn.textContent = '处理中…（约 30~120 秒）';
+  $('ctx-result').innerHTML = '<div class="empty">正在分析最后一条 AI 回复…</div>';
   const r = await call('ctx.generate');
   CTX_BUSY = false;
   btn.disabled = false;
   btn.textContent = old;
   if (!r.ok) {
     $('ctx-result').innerHTML = '<div class="err">' + esc(r.error || '未知错误') + '</div>';
-    toast('上下文出图失败', 'bad');
+    toast('补图失败', 'bad');
     return;
   }
   const d = r.data || {};
   const list = (d.prompts || []).map((p, i) => '<div class="kv"><span class="k">第 ' + (i + 1) + ' 张的提示词</span><span class="v">' + esc(p) + '</span></div>').join('');
   $('ctx-result').innerHTML =
-    '<div class="muted" style="font-size:12.5px;line-height:1.7">已在聊天里第 ' + esc(d.messageId) + ' 条回复中就地插入 ' + esc(d.count) + ' 张插图。</div>' +
+    '<div class="muted" style="font-size:12.5px;line-height:1.7">已在聊天里第 ' + esc(d.messageId) + ' 条回复中就地插入 ' + esc(d.count) + ' 张插图，回到酒馆页面就能看到。</div>' +
     (list || '');
   toast('已插入 ' + d.count + ' 张插图');
   await refreshOverview();
@@ -1618,7 +1653,7 @@ $('btn-test').onclick = async () => {
     toast('连接正常：' + (r.data && r.data.message ? r.data.message : ''));
   } else {
     $('test-err').textContent = (r.error || '未知错误') +
-      '　—　注意：部分 NAI 网关只放行出图接口，订阅端点被屏蔽；此处失败不代表服务不可用，请以实际能否出图为准。';
+      '　—　注意：部分 NAI 网关只放行出图接口、订阅端点被屏蔽，这里失败不代表服务不可用，以实际能否出图为准。';
     toast('测试连接失败', 'bad');
   }
 };
@@ -1638,14 +1673,14 @@ $('btn-nsfw-test').onclick = async () => {
     toast('分流通道连接正常：' + (r.data && r.data.message ? r.data.message : ''));
   } else {
     $('nsfw-test-err').textContent = (r.error || '未知错误') +
-      '　—　注意：部分 NAI 网关只放行出图接口，订阅端点被屏蔽；此处失败不代表服务不可用，请以实际能否出图为准。';
+      '　—　注意：部分 NAI 网关只放行出图接口，订阅端点被屏蔽；此处失败不代表服务不可用。';
     toast('分流通道测试失败', 'bad');
   }
 };
 
 $('btn-copy-rule').onclick = async () => {
   const text = $('f-rule').value || '';
-  try { await navigator.clipboard.writeText(text); toast('规则已复制到剪贴板'); }
+  try { await navigator.clipboard.writeText(text); toast('规则已复制到剪贴板，可粘进角色卡或世界书'); }
   catch {
     $('f-rule').select();
     try { document.execCommand('copy'); toast('规则已复制到剪贴板'); }
@@ -1654,7 +1689,7 @@ $('btn-copy-rule').onclick = async () => {
 };
 
 $('btn-reset').onclick = async () => {
-  if (!window.confirm('恢复出厂默认值？当前所有设置会被覆盖（聊天里已经出过的图不受影响）。')) return;
+  if (!window.confirm('恢复出厂默认值？当前所有设置会被覆盖（画师串库和生成记录不受影响，聊天里已经出过的图也不受影响）。')) return;
   const r = await call('settings.reset');
   if (!r.ok) { toast('恢复失败：' + (r.error || ''), 'bad'); return; }
   fillForm(r.data.settings);
