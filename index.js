@@ -171,10 +171,108 @@ export async function init() {
     syncPromptInjection();
     registerEvents();
     installPromptViewer();
+    addFabButton();
     log(`已加载 v${VERSION}`);
 }
 
+// ── 悬浮入口 ──
+// 聊天页右下角的常驻小按钮，点击直达管理面板（不用去扩展抽屉里找）。
+// 两个 V 系插件共用一个停靠栏（先加载者创建，后加载者追加），
+// 图案刻意错开：Canvas 绿色 Vi / Adapter 橙色 V，一眼可辨。
+function addFabButton() {
+    let dock = document.getElementById('v_fab_dock');
+    if (!dock) {
+        dock = document.createElement('div');
+        dock.id = 'v_fab_dock';
+        document.body.appendChild(dock);
+    }
+    if (document.getElementById('v_canvas_fab')) return;
+    const btn = document.createElement('div');
+    btn.id = 'v_canvas_fab';
+    btn.className = 'v_fab_btn v_fab_canvas';
+    btn.title = 'V.Canvas · 剧情插画 —— 点击打开管理面板';
+    btn.setAttribute('aria-label', btn.title);
+    btn.innerHTML =
+        '<svg viewBox="0 0 48 48" width="30" height="30" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<defs><linearGradient id="vfab_cv_g" x1="0" y1="0" x2="1" y2="1">'
+        + '<stop offset="0" stop-color="#a7f3d0"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>'
+        + '<path d="M5 20 L19 25" stroke="rgba(229,231,235,.85)" stroke-width="1.6"/>'
+        + '<path d="M21 12 L33 33 L9 33 Z" stroke="url(#vfab_cv_g)" stroke-width="1.8" fill="rgba(34,211,238,.08)"/>'
+        + '<path d="M33 24 L43 15" stroke="#f87171" stroke-width="1.7"/>'
+        + '<path d="M34 26 L45 22" stroke="#fbbf24" stroke-width="1.7"/>'
+        + '<path d="M34 28 L45 29" stroke="#34d399" stroke-width="1.7"/>'
+        + '<path d="M34 30 L43 36" stroke="#60a5fa" stroke-width="1.7"/>'
+        + '<path d="M33 32 L40 41" stroke="#c4b5fd" stroke-width="1.7"/>'
+        + '</svg>'
+        + '<span class="v_fab_label"><b>V.Canvas</b> · 剧情插画</span>';
+    dock.appendChild(btn);
+    makeFabDraggable(btn, 'v_canvas_fab_pos', openPanel);
+}
+
+// makeFabDraggable 让徽章可以按住拖到页面任意位置（位置记忆，刷新不丢），
+// 「拖动」与「点击」按位移阈值区分：位移 ≥6px 视为拖拽，松手吸附视口内并保存；
+// 没拖动就是打开面板。触屏同样生效（pointer 事件 + touch-action:none）。
+function makeFabDraggable(btn, storageKey, onClick) {
+    const placeAt = (x, y) => {
+        btn.style.position = 'fixed';
+        btn.style.left = Math.round(x) + 'px';
+        btn.style.top = Math.round(y) + 'px';
+        btn.style.right = 'auto';
+        btn.style.bottom = 'auto';
+        btn.dataset.floating = '1';
+    };
+    const clamp = (x, y) => ({
+        x: Math.min(Math.max(4, x), window.innerWidth - btn.offsetWidth - 4),
+        y: Math.min(Math.max(4, y), window.innerHeight - btn.offsetHeight - 4),
+    });
+    // 恢复上次拖放的位置
+    try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
+        if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+            const p = clamp(saved.x, saved.y);
+            placeAt(p.x, p.y);
+        }
+    } catch { /* 忽略 */ }
+
+    let drag = null;
+    btn.addEventListener('pointerdown', (e) => {
+        if (e.button !== undefined && e.button !== 0) return;
+        const r = btn.getBoundingClientRect();
+        drag = { sx: e.clientX, sy: e.clientY, x: r.left, y: r.top, moved: false };
+        try { btn.setPointerCapture(e.pointerId); } catch { /* 忽略 */ }
+        e.preventDefault();
+    });
+    btn.addEventListener('pointermove', (e) => {
+        if (!drag) return;
+        const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+        if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+        drag.moved = true;
+        placeAt(drag.x + dx, drag.y + dy);
+    });
+    btn.addEventListener('pointerup', (e) => {
+        if (!drag) return;
+        const wasDragged = drag.moved;
+        const r = btn.getBoundingClientRect();
+        drag = null;
+        if (wasDragged) {
+            const p = clamp(r.left, r.top);
+            placeAt(p.x, p.y);
+            try { localStorage.setItem(storageKey, JSON.stringify({ x: p.x, y: p.y })); } catch { /* 忽略 */ }
+        } else {
+            onClick();
+        }
+    });
+    btn.addEventListener('pointercancel', () => { drag = null; });
+}
+
+function removeFabButton() {
+    document.getElementById('v_canvas_fab')?.remove();
+    const dock = document.getElementById('v_fab_dock');
+    if (dock && !dock.children.length) dock.remove();
+}
+
 export async function exit() {
+    removeFabButton();
     closePanel();
     closePromptOverlay();
     hideProgress();
