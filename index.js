@@ -22,7 +22,7 @@ import { findMarkers, hasMarkers, stripMarkers, buildDisplayText, effectiveSourc
 import { generateIllustration, testConnection } from './lib/nai-api.js';
 import {
     applyMarkers, resolveCtxSource, applyProseMarker, applyProseMarkers, buildDirectProse, directAppliesTo,
-    pickProseAnchor, pickDirectAnchor, splitProseChunks,
+    pickProseAnchor, pickDirectAnchor, splitProseChunks, withStylePrompt,
 } from './lib/analysis.js';
 import { artistAppliesTo, artistPromptFor, withArtistPrompt } from './lib/artist.js';
 import { analyzeContext, testAnalyzeModel } from './lib/llm-api.js';
@@ -31,7 +31,7 @@ import { detectNsfw } from './lib/nsfw.js';
 import { showProgress, updateProgress, finishProgress, hideProgress, setCancelHandler } from './lib/progress.js';
 
 export const MODULE_NAME = 'v_canvas';
-const VERSION = '0.1.4';
+const VERSION = '0.2.0';
 
 // system prompt 注入用的键名（同一键重复写入会覆盖，不会累积）。
 const PROMPT_KEY = 'v_canvas_rule';
@@ -285,7 +285,12 @@ function registerEvents() {
     // 切聊天 / 重新渲染：把已出图的插画重新写回 DOM。display_text 已随聊天记录持久化，
     // 此处仅兜住 ST 清除 display_text 的少数情况。
     const rehydrate = () => { rehydrateAll().catch(err => warn('重建插图显示失败:', err)); };
-    eventSource.on(event_types.CHAT_CHANGED, rehydrate);
+    eventSource.on(event_types.CHAT_CHANGED, () => {
+        // 换聊天必须丢弃挂起中的处理：messageId 在新聊天里指向的是别人的消息，
+        // 到点后跑过去会拿错正文（挂起本就是为了等旧聊天的流式结束）。
+        if (pendingRuns.size) { log('切换聊天，丢弃挂起中的出图等待'); pendingRuns.clear(); }
+        rehydrate();
+    });
     eventSource.on(event_types.MORE_MESSAGES_LOADED, rehydrate);
     eventSource.on(event_types.MESSAGE_EDITED, rehydrate);
     eventSource.on(event_types.MESSAGE_UPDATED, rehydrate);
@@ -331,11 +336,62 @@ async function onMessageReceived(messageId, type) {
 
     if (!hasImageBackend(s())) return;
 
+    // ── 等正文完全生成 ──
+    // MESSAGE_RECEIVED 可能在流式输出进行到一半（甚至正文还是空的）时就触发。
+    // 此时立刻找标记/读正文，拿到的只是半截：直出挑不出落点、分析模型读了半章、
+    // 标记只写了一半 —— 最后都以「没有可插入的标记」这类失败收场（作者实测）。
+    // 所以酒馆还在生成就先挂起，等它彻底安静下来再从头跑一遍完整判定。
+    if (isGenerating()) {
+        log(`#${messageId}(${type ?? '-'}) 酒馆仍在流式输出，等正文完全生成后再处理`);
+        scheduleWhenSettled(messageId, type);
+        return;
+    }
+
     // 两条路线并存，互不重复：
     //   ① 标记驱动 —— 正文里已含 [ILLUST: …] 时由 processMessage 处理（零额外等待）
     //   ② 上下文驱动 —— 正文没有标记、且启用了上下文出图时，交由独立模型阅读正文后补位
     await processMessage(messageId, type, msg);
     await processContextIllustration(messageId, msg);
+}
+
+// ── 等待正文生成完毕 ──
+//
+// 轮询 isGenerating()（酒馆 streamingProcessor.isFinished === false 即仍在生成），
+// 每半秒看一眼；非流式生成时 streamingProcessor 不存在，视为已安静（行为与旧版一致）。
+// 兜底 5 分钟：流式被卡死/中断时不能无限等，超时后照样处理一次（拿到的正文至少是当下最新的）。
+const QUIET_POLL_MS = 500;
+const QUIET_MAX_MS = 5 * 60 * 1000;
+const pendingRuns = new Map();      // messageId -> true（已挂起，防重复挂）
+
+/** waitForGenerationEnd 供「补一张」等手动入口用：等酒馆出完正文。返回 false = 到了兜底上限仍在生成。 */
+function waitForGenerationEnd(maxMs = QUIET_MAX_MS) {
+    return new Promise(resolve => {
+        const started = Date.now();
+        const tick = () => {
+            if (!isGenerating()) return resolve(true);
+            if (Date.now() - started >= maxMs) return resolve(false);
+            setTimeout(tick, QUIET_POLL_MS);
+        };
+        tick();
+    });
+}
+
+/** scheduleWhenSettled 自动路线的挂起：到点后重新走一遍 onMessageReceived（里面会重新取最新正文）。 */
+function scheduleWhenSettled(messageId, type) {
+    if (pendingRuns.has(messageId)) { log(`#${messageId} 已有挂起在等正文，不重复挂`); return; }
+    pendingRuns.set(messageId, true);
+    const started = Date.now();
+    const tick = () => {
+        if (!pendingRuns.get(messageId)) return;    // 被移除（换聊天等），不再处理
+        if (!isGenerating() || Date.now() - started >= QUIET_MAX_MS) {
+            pendingRuns.delete(messageId);
+            log(`#${messageId} 正文已生成完毕（等了 ${Date.now() - started}ms），开始处理`);
+            onMessageReceived(messageId, type);
+            return;
+        }
+        setTimeout(tick, QUIET_POLL_MS);
+    };
+    setTimeout(tick, QUIET_POLL_MS);
 }
 
 // ── 上下文出图（独立模型阅读正文 → 产出提示词 → 交给 8888 / NAI 出图）──
@@ -866,7 +922,12 @@ async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMo
                     baseUrl: r.baseUrl,
                     apiKey: r.apiKey,
                     model: r.model,
-                    prompt: buildUpstreamPrompt(withArtistPrompt(sendPrompt, artistStr, r.mode), r.prefix),
+                    // 画风/画质跟住每一条自然语言请求（description/both）；tags 模式下
+                    // withStylePrompt 原样返回 —— 标签串里不能塞中文句子，与画师串互为镜像。
+                    prompt: buildUpstreamPrompt(
+                        withArtistPrompt(withStylePrompt(sendPrompt, cfg.ctx_style, cfg.ctx_quality, r.mode), artistStr, r.mode),
+                        r.prefix,
+                    ),
                     negative: r.negative,
                     width: cfg.width,
                     height: cfg.height,
@@ -887,7 +948,10 @@ async function drawMarkers(ctx, messageId, msg, st, batch, cfg, signal, promptMo
                     baseUrl: divertRoute.baseUrl,
                     apiKey: divertRoute.apiKey,
                     model: divertRoute.model,
-                    prompt: buildUpstreamPrompt(withArtistPrompt(tags, artistStr, divertRoute.mode), divertRoute.prefix),
+                    prompt: buildUpstreamPrompt(
+                        withArtistPrompt(withStylePrompt(tags, cfg.ctx_style, cfg.ctx_quality, divertRoute.mode), artistStr, divertRoute.mode),
+                        divertRoute.prefix,
+                    ),
                     negative: divertRoute.negative,
                     width: cfg.width,
                     height: cfg.height,
@@ -1668,7 +1732,14 @@ function installBridge() {
                         baseUrl: c.base_url,
                         apiKey: c.api_key,
                         model: c.model,
-                        prompt: buildUpstreamPrompt(text, c.jb_image),
+                        // 测试出图是「照真实设置跑一遍」：画风/画质当然也要跟着走，
+                        // 否则用户在「提示词」页填了画风，测出来的图却对不上自动配图的效果。
+                        // 直连官方 NAI（标签模式）不拼画风 —— 标签串里塞不进中文句子。
+                        prompt: buildUpstreamPrompt(
+                            withStylePrompt(text, c.ctx_style, c.ctx_quality,
+                                resolvePromptMode(c.prompt_format, c.base_url, c.upstream_type)),
+                            c.jb_image,
+                        ),
                         negative: c.negative,
                         width: followRecommended ? 0 : c.width,
                         height: followRecommended ? 0 : c.height,
@@ -1713,6 +1784,13 @@ function installBridge() {
                     }
                     const ctx = getContext();
                     const chat = ctx.chat ?? [];
+                    // 正文还在流式输出时先等它出完：半截正文找不到落点，报「没有可插入的标记」
+                    // 只是让人一头雾水。最多等 2 分钟，仍在生成就把决定权还给用户。
+                    if (isGenerating()) {
+                        showProgress('正在等当前回复生成完毕…');
+                        const quiet = await waitForGenerationEnd(2 * 60 * 1000);
+                        if (!quiet) return { ok: false, error: '酒馆仍在生成正文（已等 2 分钟）——稍等片刻再点一次「补一张」' };
+                    }
                     let id = -1;
                     for (let i = chat.length - 1; i >= 0; i--) {
                         const m = chat[i];

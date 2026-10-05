@@ -415,8 +415,9 @@ details.adv > .card-body{padding:18px 20px}
       <section class="page" id="page-prompt">
         <div class="page-head">
           <h1>提示词</h1>
-          <p><b>这一页是干嘛的：</b>告诉画图的人（分析模型 / 直出时的画图模型）「画风要什么、画质要什么、不要出现什么」。
-          <b>全部可以留空</b>——留空时由模型自己按作品判定。想固定画风，填「画风」那一栏最有效。</p>
+          <p><b>这一页是干嘛的：</b>给每一次真正的出图定画风与画质。「画风 / 画质」跟住<b>所有自然语言出图请求</b>——
+          标记路线、正文直出、分析模型写提示词、测试出图，全算；只有直连官方 NovelAI 的「标签模式」不吃这两栏（标签串里塞不进中文句子，锁画风用「画师串」）。
+          <b>全部可以留空</b>——留空时由模型自己按作品判定。</p>
         </div>
 
         <div class="card">
@@ -458,6 +459,8 @@ details.adv > .card-body{padding:18px 20px}
               <span class="hint">
                 对「读文字的模型」说「不要出现 X」偶尔会有反向提示的副作用 —— 画面反而出现 X。
                 遇到就把这栏清空（本来就默认留空，填不填由你决定）。
+                <b>注意分工</b>：直连官方 NAI 出图时，真正写进 negative_prompt 参数的是
+                「设置 → 出图参数」里的那栏负面词；本栏管的是读文字的模型（分析模型 / 直出）。
               </span>
             </label>
           </div>
@@ -733,7 +736,7 @@ details.adv > .card-body{padding:18px 20px}
         <div class="card">
           <div class="card-head">
             <div><div class="card-title">出图渠道 <span class="chip must">先配这里</span></div>
-            <div class="card-desc">图由谁画：装了 V.Adapter 就留空；直连官方 NAI / 网关才需要填</div></div>
+            <div class="card-desc">图由谁画：装了 V.Adapter 就留空；直连官方 NAI / 网关才需要填。<span class="term" data-term="proto">两种地址别填混</span></div></div>
             <button class="btn sm" id="btn-test">测试连接</button>
           </div>
           <div class="card-body">
@@ -1102,6 +1105,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const TERMS = {
   pformat: { t: '送给出图服务的内容（描述还是标签）', d: 'AI 写的标记有两段：自然语言描述 + 英文标签。扩散模型（官方 NovelAI）只认英文标签；V.Adapter / 聊天画图模型读自然语言更有效。这里决定发哪一段。' },
   utype: { t: '出图服务类型', d: '告诉插件你的出图服务吃哪种输入：适配服务（V.Adapter 等）吃自然语言；官方 NovelAI / NAI 网关吃英文标签。选错的典型症状：正文直出不出图。' },
+  proto: { t: 'NAI 协议 / OpenAI 格式', d: '画图服务和聊天服务说的不是同一种话。出图只说「NAI 协议」，所以「出图渠道」永远填 NAI 协议服务（留空 = 同页面的 V.Adapter）；「分析模型」永远填 OpenAI 格式服务。两栏互不通用 —— V.Adapter 就是这两种语言之间的翻译官。' },
   artist: { t: '画师串', d: '一串英文画师名标签，拼在提示词最前面锁定画风。只有按标签训练的扩散模型（官方 NovelAI / NAI 网关）认识它；经 V.Adapter 出图会自动跳过。' },
   swipe: { t: '备选回复（swipe）', d: '酒馆里的左右箭头：在同一条回复的多个「备选回复」（酒馆官方就叫这个名字）之间切换。' },
   expand: { t: '扩写', d: '把一句话交给文字模型补充成完整的画面描述（外貌、服装、场景、画风），再拿去出图。由 V.Adapter 完成；直连官方 NAI 时没有这一步。' },
