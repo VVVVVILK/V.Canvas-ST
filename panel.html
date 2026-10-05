@@ -736,47 +736,62 @@ details.adv > .card-body{padding:18px 20px}
         <div class="card">
           <div class="card-head">
             <div><div class="card-title">出图渠道 <span class="chip must">先配这里</span></div>
-            <div class="card-desc">图由谁画：装了 V.Adapter 就留空；直连官方 NAI / 网关才需要填。<span class="term" data-term="proto">两种地址别填混</span></div></div>
+            <div class="card-desc">图由谁画：三选一，选完下面的框自动跟着变。<span class="term" data-term="proto">两种地址别填混</span></div></div>
             <button class="btn sm" id="btn-test">测试连接</button>
           </div>
           <div class="card-body">
             <label class="field">
-              <span class="lab">服务地址</span>
-              <input type="text" id="f-base_url" placeholder="留空 = 自动用同页面的 V.Adapter（推荐）">
-              <span class="hint">装了 V.Adapter：<strong>留空即可</strong>，两个扩展自动接上。只有直连官方 NovelAI / 第三方 NAI 网关才需要填。填了但连不上时，会自动回退到同页面的 V.Adapter。</span>
-            </label>
-            <label class="field">
-              <span class="lab"><span class="term" data-term="utype">出图服务类型</span></span>
-              <select id="f-upstream_type">
-                <option value="auto">自动判断（本机服务算适配，远程一律算 NAI）</option>
-                <option value="adapter">适配服务 —— 吃自然语言（V.Adapter / 聊天画图模型）</option>
-                <option value="nai">官方 NovelAI —— 吃英文标签（含 NAI 网关 / 中转）</option>
+              <span class="lab">出图渠道 · 用哪个来画</span>
+              <select id="f-channel_pick">
+                <option value="bridge">A 插件页面直连 —— 装着 A 插件就什么都不用填（推荐）</option>
+                <option value="gongyi">公益站出图 —— 填公益站的地址和密钥</option>
+                <option value="nai">真 NAI 出图 —— 填真 NAI 的地址、密钥、模型名</option>
               </select>
-              <span class="hint">决定发给出图服务的是「自然语言描述」还是「英文标签」。选错的典型症状：正文直出不出图、提示一句「送出的是标签串」。
-              <b>适配服务部署在服务器上（远程域名）时必须手动选「适配服务」</b> —— 自动判断分不清远程的适配服务和 NAI 网关。装在本机的留「自动判断」就行。</span>
+              <span class="hint">选哪个，下面的框就跟着变成哪个要填的东西；「出图服务类型」「送出内容」两栏由这里自动配好，不用再手动选。
+              三种都能画普通的图；想画色色（NSFW），只有「真 NAI」能干 —— 配合第四节的分流通道使用。</span>
             </label>
-            <label class="field">
-              <span class="lab"><span class="term" data-term="pformat">送给出图服务的内容</span>（描述还是标签）</span>
-              <select id="f-prompt_format">
-                <option value="auto">自动（推荐）—— 按出图服务类型决定送描述还是送标签</option>
-                <option value="description">始终送自然语言描述（V.Adapter / 聊天画图模型）</option>
-                <option value="tags">始终送英文标签（官方 NovelAI / NAI 网关）</option>
-                <option value="both">两段合并送出（不确定出图服务时的保险选项）</option>
-              </select>
-              <span class="hint">AI 写的标记是两段式的：<span class="mono">[ILLUST: 自然语言描述 | 英文标签]</span>。这里决定取哪一段发出去。留「自动」即可，上面「出图服务类型」改了它就跟着对。</span>
-            </label>
-            <label class="field">
-              <span class="lab">API Key</span>
-              <span class="secret-wrap">
-                <input type="password" id="f-api_key" autocomplete="off" placeholder="适配服务的密钥（默认 v-adapter-8888）；服务端不校验时随便填">
-                <button type="button" class="secret-toggle" data-secret="f-api_key" aria-label="显示或隐藏">显示</button>
-              </span>
-            </label>
-            <label class="field">
-              <span class="lab">模型名</span>
-              <input type="text" id="f-model" placeholder="官方 NAI / 网关必填，如 nai-diffusion-4-5-full；经 V.Adapter 时填了也会被忽略">
-              <span class="hint">没有默认值。用 V.Adapter 出图就随便留空。</span>
-            </label>
+            <div id="channel-url-fields" style="display:none">
+              <label class="field">
+                <span class="lab">服务地址</span>
+                <input type="text" id="f-base_url" placeholder="照服务商给你的原样填，如 https://api.novelai.net">
+                <span class="hint">照服务商给你的原样填。填了但连不上时，会自动回退到同页面的 A 插件（如果装了它）。</span>
+              </label>
+              <label class="field">
+                <span class="lab">API Key</span>
+                <span class="secret-wrap">
+                  <input type="password" id="f-api_key" autocomplete="off" placeholder="照服务商给你的密钥填">
+                  <button type="button" class="secret-toggle" data-secret="f-api_key" aria-label="显示或隐藏">显示</button>
+                </span>
+              </label>
+            </div>
+            <div id="channel-model-fields" style="display:none">
+              <label class="field">
+                <span class="lab">模型名</span>
+                <input type="text" id="f-model" placeholder="如 nai-diffusion-4-5-full">
+                <span class="hint">照你真 NAI 支持的模型名填。</span>
+              </label>
+            </div>
+            <div hidden>
+              <!-- 以下两栏由上面的「出图渠道」三选一自动管理（直连=auto+auto；公益站=adapter；真 NAI=nai）。
+                   字段保留在 DOM：契约检查要求每个设置项都有对应控件，高级用户仍可在 devtools 调整。 -->
+              <label class="field">
+                <span class="lab"><span class="term" data-term="utype">出图服务类型</span></span>
+                <select id="f-upstream_type">
+                  <option value="auto">自动判断（本机服务算适配，远程一律算 NAI）</option>
+                  <option value="adapter">适配服务 —— 吃自然语言（V.Adapter / 聊天画图模型）</option>
+                  <option value="nai">官方 NovelAI —— 吃英文标签（含 NAI 网关 / 中转）</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="lab"><span class="term" data-term="pformat">送给出图服务的内容</span>（描述还是标签）</span>
+                <select id="f-prompt_format">
+                  <option value="auto">自动（推荐）—— 按出图服务类型决定送描述还是送标签</option>
+                  <option value="description">始终送自然语言描述（V.Adapter / 聊天画图模型）</option>
+                  <option value="tags">始终送英文标签（官方 NovelAI / NAI 网关）</option>
+                  <option value="both">两段合并送出（不确定出图服务时的保险选项）</option>
+                </select>
+              </label>
+            </div>
             <div class="err" id="test-err"></div>
           </div>
         </div>
@@ -1251,6 +1266,13 @@ function fillForm(s) {
   syncCtxModeUI();
   syncNsfwUI();
   syncVsigUI();
+  // 出图渠道三选一：按已存配置反推当前该选哪项（空地址=页面直连；非空按类型分公益站/真 NAI）
+  const pick = $('f-channel_pick');
+  if (pick) {
+    const burl = String(s.base_url ?? '').trim();
+    pick.value = !burl ? 'bridge' : (s.upstream_type === 'nai' ? 'nai' : 'gongyi');
+  }
+  syncChannelUI();
 }
 
 // 分流通道关闭时把整块字段收起来：留着会让人以为不填就跑不起来。
@@ -1411,6 +1433,39 @@ NUM_KEYS.forEach(k => {
 });
 // 切换补图方式后立刻收起 / 展开分析模型卡片（上面的通用循环只负责保存）
 $('f-ctx_mode').addEventListener('change', () => syncCtxModeUI());
+
+/* ── 出图渠道三选一（页面直连 / 公益站 / 真 NAI）──
+   选「直连」时地址密钥模型全部清空并隐藏（这就是老用户说的「什么都不用填」）；
+   切走之前把已填的自定义值暂存在内存里，切回来自动恢复，防止误清。
+   「出图服务类型」「送出内容」由这里自动配好：直连=auto、公益站=adapter、真 NAI=nai。 */
+let channelStash = { url: '', key: '', model: '' };
+function syncChannelUI() {
+  const pick = $('f-channel_pick');
+  if (!pick) return;
+  const isBridge = pick.value === 'bridge';
+  const isNai = pick.value === 'nai';
+  $('channel-url-fields').style.display = isBridge ? 'none' : '';
+  $('channel-model-fields').style.display = isNai ? '' : 'none';
+}
+function applyChannelPick() {
+  const input = $('f-base_url'), key = $('f-api_key'), model = $('f-model');
+  const setManaged = (id, val) => { const el = $(id); if (el && el.value !== val) { el.value = val; el.dispatchEvent(new Event('change')); } };
+  if ($('f-channel_pick').value === 'bridge') {
+    channelStash = { url: input.value, key: key.value, model: model.value };
+    for (const [el, k] of [[input, 'base_url'], [key, 'api_key'], [model, 'model']]) {
+      if (el.value) { el.value = ''; el.dispatchEvent(new Event('change')); }  // 触发通用保存
+    }
+    setManaged('#f-upstream_type', 'auto');
+    setManaged('#f-prompt_format', 'auto');
+  } else {
+    if (!input.value && channelStash.url) { input.value = channelStash.url; input.dispatchEvent(new Event('change')); }
+    if (!key.value && channelStash.key) { key.value = channelStash.key; key.dispatchEvent(new Event('change')); }
+    setManaged('#f-upstream_type', $('f-channel_pick').value === 'nai' ? 'nai' : 'adapter');
+    setManaged('#f-prompt_format', 'auto');
+  }
+  syncChannelUI();
+}
+$('f-channel_pick').addEventListener('change', () => applyChannelPick());
 BOOL_KEYS.forEach(k => {
   const el = $('sw-' + k);
   if (!el) return;
