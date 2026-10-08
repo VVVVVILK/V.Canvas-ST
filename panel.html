@@ -743,8 +743,8 @@ details.adv > .card-body{padding:18px 20px}
             <label class="field">
               <span class="lab">出图渠道 · 用哪个来画</span>
               <select id="f-channel_pick">
-                <option value="bridge">A 插件页面直连 —— 装着 A 插件就什么都不用填（推荐）</option>
-                <option value="gongyi">公益站出图 —— 填公益站的地址和密钥</option>
+                <option value="bridge">V.Adapter 页面直连 —— 装着 V.Adapter 就什么都不用填（推荐）</option>
+                <option value="gongyi">V 公益站出图 —— 填公益站的地址和密钥</option>
                 <option value="nai">真 NAI 出图 —— 填真 NAI 的地址、密钥、模型名</option>
               </select>
               <span class="hint">选哪个，下面的框就跟着变成哪个要填的东西；「出图服务类型」「送出内容」两栏由这里自动配好，不用再手动选。
@@ -754,7 +754,7 @@ details.adv > .card-body{padding:18px 20px}
               <label class="field">
                 <span class="lab">服务地址</span>
                 <input type="text" id="f-base_url" placeholder="照服务商给你的原样填，如 https://api.novelai.net">
-                <span class="hint">照服务商给你的原样填。填了但连不上时，会自动回退到同页面的 A 插件（如果装了它）。</span>
+                <span class="hint">照服务商给你的原样填。填了但连不上时，会自动回退到同页面的 V.Adapter（如果装了它）。</span>
               </label>
               <label class="field">
                 <span class="lab">API Key</span>
@@ -1271,6 +1271,25 @@ function fillForm(s) {
   if (pick) {
     const burl = String(s.base_url ?? '').trim();
     pick.value = !burl ? 'bridge' : (s.upstream_type === 'nai' ? 'nai' : 'gongyi');
+    // 自愈：老版本升级上来的存量状态 —— 渠道已选、但「出图服务类型」还停在 auto（或送出内容被手动锁死）。
+    // picker 承诺「自动配好」，所以加载时直接修正并保存，不等用户手动重选一次
+    //（否则升级后第一次出图必撞「标签串」闸门 —— 公益站用户实测踩过）。
+    const heal = {};
+    if (pick.value === 'gongyi') {
+      if (s.upstream_type !== 'adapter') heal.upstream_type = 'adapter';
+      if (s.prompt_format !== 'auto') heal.prompt_format = 'auto';
+    } else if (pick.value === 'nai') {
+      if (s.upstream_type !== 'nai') heal.upstream_type = 'nai';
+      if (s.prompt_format !== 'auto') heal.prompt_format = 'auto';
+    } else if (s.prompt_format !== 'auto') {
+      heal.prompt_format = 'auto'; // 页面直连：桥不吃形态档，锁死档位只会让测试出图困惑
+    }
+    if (Object.keys(heal).length) {
+      for (const [k, v] of Object.entries(heal)) { const el = $('f-' + k); if (el) el.value = v; }
+      SETTINGS = { ...SETTINGS, ...heal };
+      call('settings.patch', heal).catch(() => {});
+      toast('出图渠道：已按「' + (pick.value === 'gongyi' ? 'V 公益站出图' : pick.value === 'nai' ? '真 NAI 出图' : 'V.Adapter 页面直连') + '」自动配好出图服务类型');
+    }
   }
   syncChannelUI();
 }

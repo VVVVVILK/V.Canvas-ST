@@ -523,10 +523,10 @@ function directBlockedReason(cfg) {
 async function runDirectPass(ctx, messageId, msg, cfg, signal, tag) {
     const gate = resolvePromptMode(cfg.prompt_format, cfg.base_url, cfg.upstream_type);
     if (!directAppliesTo(gate)) {
-        const why = '正文直出送的是自然语言正文，当前却被判成「标签串」（' + directBlockedReason(cfg) + '）。'
-            + '如果你的地址其实指向适配服务（吃自然语言），把「设置」页的「出图服务类型」选成 adapter'
-            + '（或把「提示词形态」改成 description）即可；'
-            + '确实是直连官方 NAI 才需要切回「分析模型」模式';
+    const why = '正文直出送的是自然语言正文，当前却被判成「标签串」（' + directBlockedReason(cfg) + '）。'
+        + '如果你的地址其实指向适配服务（吃自然语言，比如 V 公益站），把「设置」页的「出图渠道」'
+        + '重新选一次「V 公益站出图」，出图服务类型就会自动配好；'
+        + '确实是直连官方 NAI 才需要切回「分析模型」模式';
         warn(`${tag} ${why}`);
         finishProgress(why, true);
         return;
